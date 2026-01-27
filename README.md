@@ -6,6 +6,11 @@ This is an application to aid in language learning. It is used to analyse text i
 
 From the project root, run `cmake --preset <preset>` and `cmake --build --preset <preset>`, where `<preset>` is one of `debug` or `release`. This will create a `/build` directory and build it there.
 
+# Running
+
+The easiest way to run it is with `cmake --build build/debug --target run` or `cmake --build build/release --target run`.
+Then open a browser and navigate to the page. For a debug build, it is located at `http://localhost:9090` and for release it is `http://localhost:8080`.
+
 # Dependencies
 
 - Wt 4.12.1. For installation instructions, see https://www.webtoolkit.eu/wt/doc/reference/html/InstallationUnix.html. This requires:
