@@ -1,8 +1,11 @@
+add_subdirectory(pages)
+
 add_executable(main
     main.cpp
 )
 
 target_link_libraries(main PRIVATE
+    pages
     Wt::Wt
     Wt::HTTP
     Boost::system
@@ -10,10 +13,6 @@ target_link_libraries(main PRIVATE
     Boost::filesystem
     Boost::program_options
     Threads::Threads
-)
-
-target_include_directories(main PRIVATE
-    ${PROJECT_SOURCE_DIR}/include
 )
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
