@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.21)
 project(LexiCorp LANGUAGES CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -15,6 +15,8 @@ find_package(Boost REQUIRED COMPONENTS
 )
 find_package(Wt REQUIRED)
 find_package(Threads REQUIRED)
+
+set(VSQLITEPP_VERSION 0.4.0)
 
 # Build src/
 add_subdirectory(src)

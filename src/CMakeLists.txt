@@ -1,4 +1,5 @@
 add_subdirectory(pages)
+add_subdirectory(db)
 
 add_executable(LexiCorp
     main.cpp
@@ -6,6 +7,7 @@ add_executable(LexiCorp
 
 target_link_libraries(LexiCorp PRIVATE
     pages
+    db
     Wt::Wt
     Wt::HTTP
     Boost::system
