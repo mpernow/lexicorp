@@ -1,10 +1,10 @@
 add_subdirectory(pages)
 
-add_executable(main
+add_executable(LexiCorp
     main.cpp
 )
 
-target_link_libraries(main PRIVATE
+target_link_libraries(LexiCorp PRIVATE
     pages
     Wt::Wt
     Wt::HTTP
@@ -15,6 +15,15 @@ target_link_libraries(main PRIVATE
     Threads::Threads
 )
 
+# Copy resources
+add_custom_command(TARGET LexiCorp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/resources
+            $<TARGET_FILE_DIR:LexiCorp>/resources
+    COMMENT "Copying resources to output directory"
+)
+
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(RUN_PORT 9090)
 else()
@@ -22,7 +31,7 @@ else()
 endif()
 
 add_custom_target(run
-    COMMAND $<TARGET_FILE:main>
+    COMMAND $<TARGET_FILE:LexiCorp>
             --docroot ${PROJECT_SOURCE_DIR}
             --http-address 0.0.0.0
             --http-port ${RUN_PORT}

@@ -1,0 +1,33 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+.main-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* vertical center */
+  align-items: center; /* horizontal center */
+  height: 100vh;
+}
+
+.greeting {
+  text-align: center;
+  font-size: 28px;
+  color: #3366cc;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-weight: bold;
+}
+
+textarea {
+  width: 250px;
+  height: 40px;
+  margin: 10px 0;
+}
+
+button {
+  padding: 8px 16px;
+  font-size: 16px;
+  cursor: pointer;
+}
