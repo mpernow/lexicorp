@@ -5,7 +5,16 @@
 #include <string>
 
 namespace db::Utils {
-template <typename T> std::string createTableSql() {
+
+template <typename T>
+concept IsDbModel = requires(T m) {
+  T::schema();
+  T::tableName;
+};
+
+template <typename T>
+  requires IsDbModel<T>
+std::string createTableSql() {
   std::ostringstream sql;
   sql << "CREATE TABLE IF NOT EXISTS " << T::tableName << "(";
 
