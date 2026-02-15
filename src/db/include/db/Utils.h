@@ -1,15 +1,19 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <concepts>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace db::Utils {
 
 template <typename T>
 concept IsDbModel = requires(T m) {
-  T::schema();
-  T::tableName;
+  {
+    T::schema()
+  } -> std::same_as<std::vector<std::pair<std::string, std::string>>>;
+  { T::tableName } -> std::convertible_to<std::string_view>;
 };
 
 template <typename T>
