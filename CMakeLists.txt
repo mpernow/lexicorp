@@ -18,5 +18,16 @@ find_package(Threads REQUIRED)
 
 set(VSQLITEPP_VERSION 0.4.0)
 
+# Enable testing and download gtest
+enable_testing()
+
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
+)
+
+FetchContent_MakeAvailable(googletest)
+
 # Build src/
 add_subdirectory(src)

@@ -19,3 +19,16 @@ target_include_directories(db
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+# Add test executable
+add_executable(db_utils_test
+    tests/UtilsTest.cpp
+)
+target_link_libraries(db_utils_test
+    gtest_main
+    db
+)
+
+# Register tests
+include(GoogleTest)
+gtest_discover_tests(db_utils_test)
+

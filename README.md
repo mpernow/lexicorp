@@ -11,6 +11,10 @@ From the project root, run `cmake --preset <preset>` and `cmake --build --preset
 The easiest way to run it is with `cmake --build build/debug --target run` or `cmake --build build/release --target run`.
 Then open a browser and navigate to the page. For a debug build, it is located at `http://localhost:9090` and for release it is `http://localhost:8080`.
 
+# Tests
+
+Tests are implemented using Google Test. They are run with `ctest --preset <release/debug> --output-on-failure`.
+
 # Dependencies
 
 - Wt 4.12.1. For installation instructions, see https://www.webtoolkit.eu/wt/doc/reference/html/InstallationUnix.html. This requires:
@@ -21,4 +25,5 @@ Then open a browser and navigate to the page. For a debug build, it is located a
 - CMake 3.20 or later
 - g++ 13.3
 - SQLite3: `sudo apt install libsqlite3-dev sqlite3`
-- vsqlite++: fetched from GitHub when configuring, see https://github.com/vinzenz/vsqlite-- and `src/db/CMakeLists.txt`
+- vsqlite++: fetched from GitHub when building, see https://github.com/vinzenz/vsqlite-- and `src/db/CMakeLists.txt`
+- googletest: fetched from Github when building, see `src/CMakeLists.txt`
