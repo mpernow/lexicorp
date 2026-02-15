@@ -23,6 +23,7 @@ target_include_directories(db
 add_executable(db_utils_test
     tests/UtilsTest.cpp
 )
+
 target_link_libraries(db_utils_test
     gtest_main
     db
