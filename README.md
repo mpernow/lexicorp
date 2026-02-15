@@ -20,5 +20,5 @@ Then open a browser and navigate to the page. For a debug build, it is located a
   - Then install the Wt package by downloading the release from github and building it.
 - CMake 3.20 or later
 - g++ 13.3
-- SQLite3: `sudo apt install libsqlite3-dev`
-- vsqlite++: fetched from GitHub when configuring, see https://github.com/vinzenz/vsqlite--
+- SQLite3: `sudo apt install libsqlite3-dev sqlite3`
+- vsqlite++: fetched from GitHub when configuring, see https://github.com/vinzenz/vsqlite-- and `src/db/CMakeLists.txt`
