@@ -23,13 +23,22 @@ target_include_directories(db
 add_executable(db_utils_test
     tests/UtilsTest.cpp
 )
-
 target_link_libraries(db_utils_test
     gtest_main
     db
 )
 
+add_executable(db_handler_test
+    tests/DatabaseHandlerTest.cpp
+)
+target_link_libraries(db_handler_test
+    gtest_main
+    db
+    vsqlite::vsqlitepp
+)
+
 # Register tests
 include(GoogleTest)
 gtest_discover_tests(db_utils_test)
+gtest_discover_tests(db_handler_test)
 

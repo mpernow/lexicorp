@@ -6,8 +6,14 @@
 #include "db/Word.h"
 
 namespace db {
-DatabaseHandler::DatabaseHandler() {
-  sqlite::connection con("test.db");
+DatabaseHandler::DatabaseHandler(std::string dbName) : mDbName(dbName) {
+  setUpDb();
+}
+
+DatabaseHandler::DatabaseHandler() : mDbName("lexiCorp.db") { setUpDb(); }
+
+void DatabaseHandler::setUpDb() {
+  sqlite::connection con(mDbName);
   sqlite::execute(con, Utils::createTableSql<models::Word>(), true);
 }
 } // namespace db
