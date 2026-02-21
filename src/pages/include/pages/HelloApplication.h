@@ -1,3 +1,5 @@
+#pragma once
+
 #include <Wt/WApplication.h>
 #include <Wt/WText.h>
 #include <Wt/WTextArea.h>

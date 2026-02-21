@@ -1,5 +1,4 @@
-#ifndef WORD_H
-#define WORD_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -19,5 +18,3 @@ struct Word {
   }
 };
 } // namespace db::models
-
-#endif // WORD_H

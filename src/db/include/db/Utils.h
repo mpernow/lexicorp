@@ -1,5 +1,4 @@
-#ifndef UTILS_H
-#define UTILS_H
+#pragma once
 
 #include <concepts>
 #include <sstream>
@@ -34,5 +33,3 @@ std::string createTableSql() {
 }
 
 } // namespace db::Utils
-
-#endif
