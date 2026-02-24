@@ -1,15 +1,18 @@
 #pragma once
+#include <sqlite/connection.hpp>
 #include <string>
 
 namespace db {
+
 class DatabaseHandler {
 public:
-  DatabaseHandler();
-  DatabaseHandler(std::string dbName);
+  explicit DatabaseHandler();
+  explicit DatabaseHandler(std::string dbName);
+
+  sqlite::connection &getConnection();
 
 private:
-  void setUpDb();
-
   std::string mDbName;
+  sqlite::connection mConnection;
 };
 } // namespace db
