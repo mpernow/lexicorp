@@ -13,7 +13,9 @@ set(VSQLITE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(VSQLITE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(vsqlitepp)
 
-target_link_libraries(db PRIVATE vsqlite::vsqlitepp)
+find_package(SQLite3 REQUIRED)
+target_link_libraries(db PRIVATE vsqlite::vsqlitepp SQLite::SQLite3)
+
 
 target_include_directories(db
     PUBLIC
