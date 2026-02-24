@@ -8,6 +8,7 @@ add_executable(LexiCorp
 target_link_libraries(LexiCorp PRIVATE
     pages
     db
+    vsqlite::vsqlitepp
     Wt::Wt
     Wt::HTTP
     Boost::system
