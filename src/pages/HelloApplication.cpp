@@ -1,11 +1,14 @@
 #include <Wt/WBreak.h>
 #include <Wt/WContainerWidget.h>
 #include <Wt/WPushButton.h>
+#include <unordered_map>
 
 #include "pages/HelloApplication.h"
 
-HelloApplication::HelloApplication(const Wt::WEnvironment &env)
+HelloApplication::HelloApplication(const Wt::WEnvironment &env,
+                                   db::WordRepository &wordRepo)
     : Wt::WApplication(env) {
+  mTextProcessor = std::make_unique<processor::TextProcessor>();
 
   useStyleSheet("resources/style.css");
 
@@ -26,7 +29,14 @@ HelloApplication::HelloApplication(const Wt::WEnvironment &env)
   greeting_ = container->addNew<Wt::WText>();
   greeting_->setStyleClass("greeting");
   auto greet = [this] {
-    greeting_->setText("Hello there, " + textEdit_->text());
+    std::unordered_map<std::string, int> wordCounts =
+        mTextProcessor->computeFrequencies(textEdit_->text().narrow());
+
+    std::string outputText = "";
+    for (const auto &[word, count] : wordCounts) {
+      outputText += word + ": " + std::to_string(count) + "\n";
+    }
+    greeting_->setText(outputText);
   };
   button->clicked().connect(greet);
 }

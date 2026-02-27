@@ -1,5 +1,6 @@
 add_subdirectory(pages)
 add_subdirectory(db)
+add_subdirectory(processor)
 
 add_executable(LexiCorp
     main.cpp
@@ -8,6 +9,7 @@ add_executable(LexiCorp
 target_link_libraries(LexiCorp PRIVATE
     pages
     db
+    processor
     vsqlite::vsqlitepp
     Wt::Wt
     Wt::HTTP
