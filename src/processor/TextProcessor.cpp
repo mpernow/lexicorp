@@ -1,5 +1,4 @@
 #include "processor/TextProcessor.h"
-#include <iostream>
 #include <ranges>
 
 namespace processor {

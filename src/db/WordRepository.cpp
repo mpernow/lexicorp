@@ -18,13 +18,12 @@ void WordRepository::add(const models::Word &word) {
                          "VALUES(?, ?, ?)"};
 
   insert % word.word % word.numOccurences % word.known;
+  insert();
 }
 std::optional<models::Word> WordRepository::getByText(const std::string &text) {
   sqlite::query q{mDbConn, "SELECT word, numOccurences, known "
-                           "FROM words WHERE word = ?"
+                           "FROM words WHERE word = ? "
                            "LIMIT 1"};
-
-  q % text;
 
   for (auto &row : q.each(text)) {
     return models::Word{.word = row.get<std::string>(0),
@@ -56,6 +55,7 @@ void WordRepository::update(const models::Word &word) {
 
   update % sqlite::named(":count", word.numOccurences) %
       sqlite::named(":known", word.known) % sqlite::named(":word", word.word);
+  update();
 }
 
 } // namespace db
