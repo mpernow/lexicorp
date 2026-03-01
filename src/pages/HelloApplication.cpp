@@ -29,12 +29,12 @@ HelloApplication::HelloApplication(const Wt::WEnvironment &env,
   greeting_ = container->addNew<Wt::WText>();
   greeting_->setStyleClass("greeting");
   auto greet = [this] {
-    std::unordered_map<std::string, int> wordCounts =
-        mTextProcessor->computeFrequencies(textEdit_->text().narrow());
+    std::unordered_map<std::wstring, int> wordCounts =
+        mTextProcessor->computeFrequencies(textEdit_->text().value());
 
-    std::string outputText = "";
+    std::wstring outputText = L"";
     for (const auto &[word, count] : wordCounts) {
-      outputText += word + ": " + std::to_string(count) + "\n";
+      outputText += word + L": " + std::to_wstring(count) + L"\n";
     }
     greeting_->setText(outputText);
   };

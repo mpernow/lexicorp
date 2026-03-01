@@ -7,10 +7,10 @@ class TextProcessor {
 public:
   TextProcessor();
 
-  std::unordered_map<std::string, int>
-  computeFrequencies(const std::string &text);
+  std::unordered_map<std::wstring, int>
+  computeFrequencies(const std::wstring &text);
 
 private:
-  std::string normalize(const std::string &text);
+  std::wstring normalize(const std::wstring &text);
 };
 } // namespace processor
