@@ -6,12 +6,13 @@
 #include <Wt/WText.h>
 #include <Wt/WTextArea.h>
 
-class HelloApplication : public Wt::WApplication {
+class InsertTextPage : public Wt::WApplication {
 public:
-  HelloApplication(const Wt::WEnvironment &env, db::WordRepository &wordRepo);
+  InsertTextPage(const Wt::WEnvironment &env, db::WordRepository &wordRepo);
 
 private:
   Wt::WTextArea *textEdit_;
   Wt::WText *greeting_;
   std::unique_ptr<processor::TextProcessor> mTextProcessor;
+  db::WordRepository &mWordRepository;
 };

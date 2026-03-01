@@ -3,11 +3,11 @@
 #include <Wt/WPushButton.h>
 #include <unordered_map>
 
-#include "pages/HelloApplication.h"
+#include "pages/InsertTextPage.h"
 
-HelloApplication::HelloApplication(const Wt::WEnvironment &env,
-                                   db::WordRepository &wordRepo)
-    : Wt::WApplication(env) {
+InsertTextPage::InsertTextPage(const Wt::WEnvironment &env,
+                               db::WordRepository &wordRepo)
+    : Wt::WApplication(env), mWordRepository(wordRepo) {
   mTextProcessor = std::make_unique<processor::TextProcessor>();
 
   useStyleSheet("resources/style.css");
@@ -15,7 +15,7 @@ HelloApplication::HelloApplication(const Wt::WEnvironment &env,
   auto container = root()->addNew<Wt::WContainerWidget>();
   container->setStyleClass("main-container");
 
-  setTitle("Hello world");
+  setTitle("LexiCorp");
 
   container->addNew<Wt::WText>("Your name, please? ");
   textEdit_ = container->addNew<Wt::WTextArea>();
@@ -32,6 +32,7 @@ HelloApplication::HelloApplication(const Wt::WEnvironment &env,
     std::unordered_map<std::wstring, int> wordCounts =
         mTextProcessor->computeFrequencies(textEdit_->text().value());
 
+    mWordRepository.updateFrequencies(wordCounts);
     std::wstring outputText = L"";
     for (const auto &[word, count] : wordCounts) {
       outputText += word + L": " + std::to_wstring(count) + L"\n";

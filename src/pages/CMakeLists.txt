@@ -1,5 +1,5 @@
 add_library(pages
-    HelloApplication.cpp
+    InsertTextPage.cpp
 )
 
 target_include_directories(pages
