@@ -62,3 +62,55 @@ TEST(dbUtilsTemplateConceptTests, WrongTableName) {
 TEST(dbUtilsTemplateConceptTests, WrongSchema) {
   static_assert(!db::Utils::IsDbModel<TestDbModelWrongSchema>);
 }
+
+TEST(UnicodeConversionTests, ToUtf8Only) {
+  std::wstring original = L"café naïve résumé";
+
+  std::string utf8 = db::Utils::toUtf8(original);
+
+  const std::string expectedUtf8(
+      reinterpret_cast<const char *>(u8"café naïve résumé"));
+
+  EXPECT_EQ(utf8, expectedUtf8);
+}
+
+TEST(UnicodeConversionTests, ToUtf8Kurdish) {
+  std::wstring original = L"چاوە";
+
+  std::string utf8 = db::Utils::toUtf8(original);
+
+  const std::string expectedUtf8(reinterpret_cast<const char *>(u8"چاوە"));
+  EXPECT_EQ(utf8, expectedUtf8);
+}
+
+TEST(UnicodeConversionTests, AsciiRoundTrip) {
+  std::wstring original = L"hello world";
+  std::string utf8 = db::Utils::toUtf8(original);
+  std::wstring result = db::Utils::fromUtf8(utf8);
+
+  EXPECT_EQ(original, result);
+}
+
+TEST(UnicodeConversionTests, AccentedCharacters) {
+  std::wstring original = L"café naïve résumé";
+  std::string utf8 = db::Utils::toUtf8(original);
+  std::wstring result = db::Utils::fromUtf8(utf8);
+
+  EXPECT_EQ(original, result);
+}
+
+TEST(UnicodeConversionTests, KurdishText) {
+  std::wstring original = L"چاوە";
+  std::string utf8 = db::Utils::toUtf8(original);
+  std::wstring result = db::Utils::fromUtf8(utf8);
+
+  EXPECT_EQ(original, result);
+}
+
+TEST(UnicodeConversionTests, EmptyString) {
+  std::wstring original;
+  std::string utf8 = db::Utils::toUtf8(original);
+  std::wstring result = db::Utils::fromUtf8(utf8);
+
+  EXPECT_EQ(original, result);
+}

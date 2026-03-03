@@ -27,3 +27,4 @@ Tests are implemented using Google Test. They are run with `ctest --preset <rele
 - SQLite3: `sudo apt install libsqlite3-dev sqlite3`
 - vsqlite++: fetched from GitHub when building, see https://github.com/vinzenz/vsqlite-- and `src/db/CMakeLists.txt`
 - googletest: fetched from Github when building, see `src/CMakeLists.txt`
+- ICU: `sudo apt install libicu-dev`

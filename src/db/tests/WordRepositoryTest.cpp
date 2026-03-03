@@ -12,10 +12,10 @@ TEST(WordRepositoryTests, InsertWordTest) {
   auto dbHandler = db::DatabaseHandler{dbName};
   auto wordRepository = db::WordRepository{dbHandler.getConnection()};
 
-  db::models::Word word = db::models::Word("hi", 2, true);
+  db::models::Word word = db::models::Word(L"hi", 2, true);
   wordRepository.add(word);
 
-  auto dbWord = wordRepository.getByText("hi");
+  auto dbWord = wordRepository.getByText(L"hi");
 
   EXPECT_EQ(word.word, dbWord->word);
   EXPECT_EQ(word.numOccurences, dbWord->numOccurences);
@@ -28,8 +28,8 @@ TEST(WordRepositoryTests, InsertMultipleWordsTest) {
   auto dbHandler = db::DatabaseHandler{dbName};
   auto wordRepository = db::WordRepository{dbHandler.getConnection()};
 
-  db::models::Word word = db::models::Word("hi", 2, true);
-  db::models::Word word2 = db::models::Word("hello", 3, false);
+  db::models::Word word = db::models::Word(L"hi", 2, true);
+  db::models::Word word2 = db::models::Word(L"hello", 3, false);
   wordRepository.add(word);
   wordRepository.add(word2);
 
@@ -38,10 +38,10 @@ TEST(WordRepositoryTests, InsertMultipleWordsTest) {
   ASSERT_EQ(words.size(), 2);
 
   auto itHi = std::find_if(words.begin(), words.end(),
-                           [](const auto &w) { return w.word == "hi"; });
+                           [](const auto &w) { return w.word == L"hi"; });
 
   auto itHello = std::find_if(words.begin(), words.end(),
-                              [](const auto &w) { return w.word == "hello"; });
+                              [](const auto &w) { return w.word == L"hello"; });
 
   ASSERT_NE(itHi, words.end());
   ASSERT_NE(itHello, words.end());
@@ -59,21 +59,44 @@ TEST(WordRepositoryTests, UpdateWordTest) {
   auto dbHandler = db::DatabaseHandler{dbName};
   auto wordRepository = db::WordRepository{dbHandler.getConnection()};
 
-  db::models::Word word = db::models::Word("hi", 2, false);
+  db::models::Word word = db::models::Word(L"hi", 2, false);
   wordRepository.add(word);
 
-  auto dbWord = wordRepository.getByText("hi");
+  auto dbWord = wordRepository.getByText(L"hi");
 
   EXPECT_EQ(word.word, dbWord->word);
   EXPECT_EQ(word.numOccurences, dbWord->numOccurences);
   EXPECT_EQ(word.known, dbWord->known);
 
-  db::models::Word wordUpdated = db::models::Word("hi", 3, true);
+  db::models::Word wordUpdated = db::models::Word(L"hi", 3, true);
   wordRepository.update(wordUpdated);
 
-  auto dbWordUpdated = wordRepository.getByText("hi");
+  auto dbWordUpdated = wordRepository.getByText(L"hi");
 
   EXPECT_EQ(wordUpdated.word, dbWordUpdated->word);
   EXPECT_EQ(wordUpdated.numOccurences, dbWordUpdated->numOccurences);
   EXPECT_EQ(wordUpdated.known, dbWordUpdated->known);
+}
+
+TEST(WordRepositoryTests, UpdateFrequenciesTest) {
+  // Create DatabaseHandler with in-memory database
+  std::string dbName = ":memory:";
+  auto dbHandler = db::DatabaseHandler{dbName};
+  auto wordRepository = db::WordRepository{dbHandler.getConnection()};
+
+  db::models::Word word = db::models::Word(L"hello", 2, false);
+  wordRepository.add(word);
+
+  std::unordered_map<std::wstring, int> freqs = {
+      {L"hello", 1}, {L"world", 2}, {L"çavê", 3}};
+
+  wordRepository.updateFrequencies(freqs);
+
+  std::unordered_map<std::wstring, int> expectedFreqs = {
+      {L"hello", 3}, {L"world", 2}, {L"çavê", 3}};
+
+  for (auto &[word, freq] : freqs) {
+    auto dbWord = wordRepository.getByText(word);
+    EXPECT_EQ(dbWord->numOccurences, expectedFreqs.at(word));
+  }
 }

@@ -14,7 +14,9 @@ set(VSQLITE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(vsqlitepp)
 
 find_package(SQLite3 REQUIRED)
-target_link_libraries(db PRIVATE vsqlite::vsqlitepp)
+find_package(ICU REQUIRED COMPONENTS uc i18n data)
+
+target_link_libraries(db PRIVATE vsqlite::vsqlitepp ICU::uc ICU::i18n ICU::data)
 
 
 target_include_directories(db

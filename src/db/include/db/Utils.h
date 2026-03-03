@@ -3,6 +3,7 @@
 #include <concepts>
 #include <sstream>
 #include <string>
+#include <unicode/unistr.h>
 #include <vector>
 
 namespace db::Utils {
@@ -30,6 +31,33 @@ std::string createTableSql() {
 
   sql << ");";
   return sql.str();
+}
+
+std::string toUtf8(const std::wstring &wstr) {
+  if (wstr.empty())
+    return {};
+
+  icu::UnicodeString ustr = icu::UnicodeString::fromUTF32(
+      reinterpret_cast<const UChar32 *>(wstr.c_str()),
+      static_cast<int32_t>(wstr.length()));
+
+  std::string result;
+  ustr.toUTF8String(result);
+
+  return result;
+}
+
+std::wstring fromUtf8(const std::string &utf8) {
+  icu::UnicodeString ustr = icu::UnicodeString::fromUTF8(utf8);
+  std::wstring ws;
+  ws.reserve(ustr.countChar32());
+
+  for (int32_t i = 0; i < ustr.length();) {
+    ws.push_back(static_cast<wchar_t>(ustr.char32At(i)));
+    i += U16_LENGTH(ustr.char32At(i));
+  }
+
+  return ws;
 }
 
 } // namespace db::Utils
