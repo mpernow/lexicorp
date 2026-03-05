@@ -16,7 +16,7 @@ FetchContent_MakeAvailable(vsqlitepp)
 find_package(SQLite3 REQUIRED)
 find_package(ICU REQUIRED COMPONENTS uc)
 
-target_link_libraries(db PUBLIC vsqlite::vsqlitepp ${ICU_LIBRARIES})
+target_link_libraries(db PUBLIC utils vsqlite::vsqlitepp ${ICU_LIBRARIES})
 
 
 target_include_directories(db

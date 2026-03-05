@@ -4,6 +4,7 @@
 #include <unordered_map>
 
 #include "pages/InsertTextPage.h"
+#include "utils/Language.h"
 
 InsertTextPage::InsertTextPage(const Wt::WEnvironment &env,
                                db::WordRepository &wordRepo)
@@ -32,7 +33,7 @@ InsertTextPage::InsertTextPage(const Wt::WEnvironment &env,
     std::unordered_map<std::wstring, int> wordCounts =
         mTextProcessor->computeFrequencies(textEdit_->text().value());
 
-    mWordRepository.updateFrequencies(wordCounts);
+    mWordRepository.updateFrequencies(wordCounts, utils::Language::Unknown);
     std::wstring outputText = L"";
     for (const auto &[word, count] : wordCounts) {
       outputText += word + L": " + std::to_wstring(count) + L"\n";

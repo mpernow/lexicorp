@@ -11,11 +11,13 @@ public:
   ~WordRepository();
 
   void add(const models::Word &word) override;
-  std::optional<models::Word> getByText(const std::wstring &text) override;
+  std::optional<models::Word>
+  getByText(const std::wstring &text, const utils::Language &language) override;
   std::vector<models::Word> getAll() override;
   void update(const models::Word &word) override;
-  void updateFrequencies(
-      const std::unordered_map<std::wstring, int> &frequencies) override;
+  void
+  updateFrequencies(const std::unordered_map<std::wstring, int> &frequencies,
+                    const utils::Language &language) override;
 
 private:
   sqlite::connection &mDbConn;

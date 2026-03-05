@@ -1,6 +1,7 @@
 #include "db/WordRepository.h"
 #include "db/DatabaseHandler.h"
 #include "db/Word.h"
+#include "utils/Language.h"
 #include <gtest/gtest.h>
 #include <sqlite/connection.hpp>
 #include <sqlite/query.hpp>
@@ -15,7 +16,7 @@ TEST(WordRepositoryTests, InsertWordTest) {
   db::models::Word word = db::models::Word(L"hi", 2, true);
   wordRepository.add(word);
 
-  auto dbWord = wordRepository.getByText(L"hi");
+  auto dbWord = wordRepository.getByText(L"hi", utils::Language::Unknown);
 
   EXPECT_EQ(word.word, dbWord->word);
   EXPECT_EQ(word.numOccurrences, dbWord->numOccurrences);
@@ -62,7 +63,7 @@ TEST(WordRepositoryTests, UpdateWordTest) {
   db::models::Word word = db::models::Word(L"hi", 2, false);
   wordRepository.add(word);
 
-  auto dbWord = wordRepository.getByText(L"hi");
+  auto dbWord = wordRepository.getByText(L"hi", utils::Language::Unknown);
 
   EXPECT_EQ(word.word, dbWord->word);
   EXPECT_EQ(word.numOccurrences, dbWord->numOccurrences);
@@ -71,7 +72,8 @@ TEST(WordRepositoryTests, UpdateWordTest) {
   db::models::Word wordUpdated = db::models::Word(L"hi", 3, true);
   wordRepository.update(wordUpdated);
 
-  auto dbWordUpdated = wordRepository.getByText(L"hi");
+  auto dbWordUpdated =
+      wordRepository.getByText(L"hi", utils::Language::Unknown);
 
   EXPECT_EQ(wordUpdated.word, dbWordUpdated->word);
   EXPECT_EQ(wordUpdated.numOccurrences, dbWordUpdated->numOccurrences);
@@ -90,13 +92,47 @@ TEST(WordRepositoryTests, UpdateFrequenciesTest) {
   std::unordered_map<std::wstring, int> freqs = {
       {L"hello", 1}, {L"world", 2}, {L"çavê", 3}};
 
-  wordRepository.updateFrequencies(freqs);
+  wordRepository.updateFrequencies(freqs, utils::Language::Unknown);
 
   std::unordered_map<std::wstring, int> expectedFreqs = {
       {L"hello", 3}, {L"world", 2}, {L"çavê", 3}};
 
   for (auto &[word, freq] : freqs) {
-    auto dbWord = wordRepository.getByText(word);
+    auto dbWord = wordRepository.getByText(word, utils::Language::Unknown);
     EXPECT_EQ(dbWord->numOccurrences, expectedFreqs.at(word));
+  }
+}
+
+TEST(WordRepositoryTests, UpdateFrequenciesMultipleLanguagesTest) {
+  // Create DatabaseHandler with in-memory database
+  std::string dbName = ":memory:";
+  auto dbHandler = db::DatabaseHandler{dbName};
+  auto wordRepository = db::WordRepository{dbHandler.getConnection()};
+
+  db::models::Word word =
+      db::models::Word(L"hello", 2, false, utils::Language::English);
+  wordRepository.add(word);
+
+  std::unordered_map<std::wstring, int> freqs = {
+      {L"hello", 1}, {L"world", 2}, {L"çavê", 3}};
+
+  wordRepository.updateFrequencies(freqs, utils::Language::English);
+
+  std::unordered_map<std::wstring, int> freqsUnknownLang = {
+      {L"hello", 11}, {L"world", 22}, {L"çavê", 33}};
+
+  wordRepository.updateFrequencies(freqsUnknownLang, utils::Language::Unknown);
+
+  std::unordered_map<std::wstring, int> expectedFreqs = {
+      {L"hello", 3}, {L"world", 2}, {L"çavê", 3}};
+
+  for (auto &[word, freq] : freqs) {
+    auto dbWord = wordRepository.getByText(word, utils::Language::English);
+    EXPECT_EQ(dbWord->numOccurrences, expectedFreqs.at(word));
+  }
+
+  for (auto &[word, freq] : freqsUnknownLang) {
+    auto dbWord = wordRepository.getByText(word, utils::Language::Unknown);
+    EXPECT_EQ(dbWord->numOccurrences, freqsUnknownLang.at(word));
   }
 }

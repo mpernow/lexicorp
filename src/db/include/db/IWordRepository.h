@@ -1,5 +1,6 @@
 #pragma once
 #include "db/Word.h"
+#include "utils/Language.h"
 
 #include <optional>
 #include <string>
@@ -12,10 +13,12 @@ public:
   virtual ~IWordRepository() = default;
 
   virtual void add(const models::Word &word) = 0;
-  virtual std::optional<models::Word> getByText(const std::wstring &text) = 0;
+  virtual std::optional<models::Word>
+  getByText(const std::wstring &text, const utils::Language &language) = 0;
   virtual std::vector<models::Word> getAll() = 0;
   virtual void update(const models::Word &word) = 0;
-  virtual void updateFrequencies(
-      const std::unordered_map<std::wstring, int> &frequencies) = 0;
+  virtual void
+  updateFrequencies(const std::unordered_map<std::wstring, int> &frequencies,
+                    const utils::Language &language) = 0;
 };
 } // namespace db
