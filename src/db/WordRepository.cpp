@@ -16,29 +16,29 @@ WordRepository::~WordRepository() = default;
 
 void WordRepository::add(const models::Word &word) {
   sqlite::command insert{mDbConn,
-                         "INSERT INTO words(word, numOccurences, known) "
+                         "INSERT INTO words(word, numOccurrences, known) "
                          "VALUES(?, ?, ?)"};
 
-  insert % Utils::toUtf8(word.word) % word.numOccurences % word.known;
+  insert % Utils::toUtf8(word.word) % word.numOccurrences % word.known;
   insert();
 }
 std::optional<models::Word>
 WordRepository::getByText(const std::wstring &text) {
-  sqlite::query q{mDbConn, "SELECT word, numOccurences, known "
+  sqlite::query q{mDbConn, "SELECT word, numOccurrences, known "
                            "FROM words WHERE word = ? "
                            "LIMIT 1"};
 
   std::wstring word;
   for (auto &row : q.each(Utils::toUtf8(text))) {
     return models::Word{.word = Utils::fromUtf8(row.get<std::string>(0)),
-                        .numOccurences = row.get<int>(1),
+                        .numOccurrences = row.get<int>(1),
                         .known = static_cast<bool>(row.get<int>(2))};
   }
   return std::nullopt;
 }
 
 std::vector<models::Word> WordRepository::getAll() {
-  sqlite::query q{mDbConn, "SELECT word, numOccurences, known FROM words"};
+  sqlite::query q{mDbConn, "SELECT word, numOccurrences, known FROM words"};
   sqlite::result_type res = q.get_result();
 
   std::vector<models::Word> words;
@@ -53,11 +53,11 @@ std::vector<models::Word> WordRepository::getAll() {
 
 void WordRepository::update(const models::Word &word) {
   sqlite::command update{mDbConn, "UPDATE words "
-                                  "SET numOccurences = :count, "
+                                  "SET numOccurrences = :count, "
                                   "    known = :known "
                                   "WHERE word = :word"};
 
-  update % sqlite::named(":count", word.numOccurences) %
+  update % sqlite::named(":count", word.numOccurrences) %
       sqlite::named(":known", word.known) %
       sqlite::named(":word", Utils::toUtf8(word.word));
   update();
@@ -75,10 +75,10 @@ void WordRepository::updateFrequencies(
     // TODO: This is needed due to some lifetime issue, investigate!
     sqlite::command upsert{
         mDbConn,
-        "INSERT INTO words(word, numOccurences, known) "
+        "INSERT INTO words(word, numOccurrences, known) "
         "VALUES(?, ?, 0) "
         "ON CONFLICT(word) DO UPDATE "
-        "SET numOccurences = words.numOccurences + excluded.numOccurences"};
+        "SET numOccurrences = words.numOccurrences + excluded.numOccurrences"};
 
     upsert % utf8Word % freq;
     upsert();

@@ -18,7 +18,7 @@ TEST(WordRepositoryTests, InsertWordTest) {
   auto dbWord = wordRepository.getByText(L"hi");
 
   EXPECT_EQ(word.word, dbWord->word);
-  EXPECT_EQ(word.numOccurences, dbWord->numOccurences);
+  EXPECT_EQ(word.numOccurrences, dbWord->numOccurrences);
   EXPECT_EQ(word.known, dbWord->known);
 }
 
@@ -46,10 +46,10 @@ TEST(WordRepositoryTests, InsertMultipleWordsTest) {
   ASSERT_NE(itHi, words.end());
   ASSERT_NE(itHello, words.end());
 
-  EXPECT_EQ(itHi->numOccurences, 2);
+  EXPECT_EQ(itHi->numOccurrences, 2);
   EXPECT_EQ(itHi->known, true);
 
-  EXPECT_EQ(itHello->numOccurences, 3);
+  EXPECT_EQ(itHello->numOccurrences, 3);
   EXPECT_EQ(itHello->known, false);
 }
 
@@ -65,7 +65,7 @@ TEST(WordRepositoryTests, UpdateWordTest) {
   auto dbWord = wordRepository.getByText(L"hi");
 
   EXPECT_EQ(word.word, dbWord->word);
-  EXPECT_EQ(word.numOccurences, dbWord->numOccurences);
+  EXPECT_EQ(word.numOccurrences, dbWord->numOccurrences);
   EXPECT_EQ(word.known, dbWord->known);
 
   db::models::Word wordUpdated = db::models::Word(L"hi", 3, true);
@@ -74,7 +74,7 @@ TEST(WordRepositoryTests, UpdateWordTest) {
   auto dbWordUpdated = wordRepository.getByText(L"hi");
 
   EXPECT_EQ(wordUpdated.word, dbWordUpdated->word);
-  EXPECT_EQ(wordUpdated.numOccurences, dbWordUpdated->numOccurences);
+  EXPECT_EQ(wordUpdated.numOccurrences, dbWordUpdated->numOccurrences);
   EXPECT_EQ(wordUpdated.known, dbWordUpdated->known);
 }
 
@@ -97,6 +97,6 @@ TEST(WordRepositoryTests, UpdateFrequenciesTest) {
 
   for (auto &[word, freq] : freqs) {
     auto dbWord = wordRepository.getByText(word);
-    EXPECT_EQ(dbWord->numOccurences, expectedFreqs.at(word));
+    EXPECT_EQ(dbWord->numOccurrences, expectedFreqs.at(word));
   }
 }
