@@ -2,12 +2,15 @@ add_library(processor
     TextProcessor.cpp
 )
 
+find_package(ICU REQUIRED COMPONENTS uc i18n data)
+
 target_include_directories(processor
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${ICU_INCLUDE_DIRS}
 )
 
-target_link_libraries(processor PRIVATE db)
+target_link_libraries(processor PUBLIC vsqlite::vsqlitepp ${ICU_LIBRARIES})
 
 
 # Add test executable

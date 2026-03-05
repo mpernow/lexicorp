@@ -14,15 +14,16 @@ set(VSQLITE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(vsqlitepp)
 
 find_package(SQLite3 REQUIRED)
-find_package(ICU REQUIRED COMPONENTS uc i18n data)
+find_package(ICU REQUIRED COMPONENTS uc)
 
-target_link_libraries(db PRIVATE vsqlite::vsqlitepp ICU::uc ICU::i18n ICU::data)
+target_link_libraries(db PUBLIC vsqlite::vsqlitepp ${ICU_LIBRARIES})
 
 
 target_include_directories(db
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${vsqlitepp_SOURCE_DIR}/include
+        ${ICU_INCLUDE_DIRECTORIES}
 )
 
 # Add test executable

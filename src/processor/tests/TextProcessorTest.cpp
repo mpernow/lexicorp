@@ -1,6 +1,5 @@
 #include "processor/TextProcessor.h"
 #include <gtest/gtest.h>
-#include <iostream>
 #include <string>
 
 TEST(TextProcessorTests, ComputeFrequenciesTest) {
@@ -27,16 +26,17 @@ TEST(TextProcessorTests, ComputeFrequenciesAccentsTest) {
         - Bonjour, comment ça va?
         - Salut! Ça va bien, et toi?
         - Oui, ça va.
+        - Être et être devraient être le même.
     )";
   auto textProcessor = processor::TextProcessor();
 
   auto frequencies = textProcessor.computeFrequencies(text);
 
-  // TODO: make these tests pass. The normalise function does not convert Ç to ç
   EXPECT_EQ(frequencies.at(L"ça"), 3);
   EXPECT_FALSE(frequencies.contains(L"Ça"));
   EXPECT_EQ(frequencies.at(L"va"), 3);
   EXPECT_EQ(frequencies.at(L"comment"), 1);
+  EXPECT_EQ(frequencies.at(L"être"), 3);
 }
 
 TEST(TextProcessorTests, ComputeFrequenciesKurdishTest) {
@@ -49,7 +49,6 @@ TEST(TextProcessorTests, ComputeFrequenciesKurdishTest) {
 
   auto frequencies = textProcessor.computeFrequencies(text);
 
-  // TODO: Get the locale working so the following pass
   EXPECT_EQ(frequencies.at(L"سڵاو"), 2);
   EXPECT_FALSE(frequencies.contains(L"سڵاۆ"));
   EXPECT_EQ(frequencies.at(L"باشم"), 2);
