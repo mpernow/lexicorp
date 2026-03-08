@@ -33,7 +33,7 @@ std::string createTableSql() {
   return sql.str();
 }
 
-std::string toUtf8(const std::wstring &wstr) {
+inline std::string toUtf8(const std::wstring &wstr) {
   if (wstr.empty())
     return {};
 
@@ -47,7 +47,7 @@ std::string toUtf8(const std::wstring &wstr) {
   return result;
 }
 
-std::wstring fromUtf8(const std::string &utf8) {
+inline std::wstring fromUtf8(const std::string &utf8) {
   icu::UnicodeString ustr = icu::UnicodeString::fromUTF8(utf8);
   std::wstring ws;
   ws.reserve(ustr.countChar32());
