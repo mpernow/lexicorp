@@ -55,3 +55,64 @@ TEST(TextProcessorTests, ComputeFrequenciesKurdishTest) {
   EXPECT_EQ(frequencies.at(L"چۆنی"), 2);
   EXPECT_EQ(frequencies.at(L"سوپاس"), 1);
 }
+
+TEST(TextProcessorTests, HashTestReproducible) {
+  std::wstring text = LR"(
+        hello, how are you?
+        hi, hello, bonjour
+
+
+        some more text.
+        hi!!!
+        HI!
+    )";
+  auto textProcessor = processor::TextProcessor();
+
+  uint64_t hash1 = textProcessor.hashWstring(text);
+  uint64_t hash2 = textProcessor.hashWstring(text);
+
+  EXPECT_EQ(hash1, hash2);
+}
+
+TEST(TextProcessorTests, HashTestDifferent) {
+  std::wstring text1 = LR"(
+        hello, how are you?
+        hi, hello, bonjour
+
+
+        some more text.
+        hi!!!
+        HI!
+    )";
+
+  // Slightly different: trailing space
+  std::wstring text2 = LR"(
+        hello, how are you?
+        hi, hello, bonjour
+
+
+        some more text.
+        hi!!!
+        HI! 
+    )";
+  auto textProcessor = processor::TextProcessor();
+
+  uint64_t hash1 = textProcessor.hashWstring(text1);
+  uint64_t hash2 = textProcessor.hashWstring(text2);
+
+  EXPECT_NE(hash1, hash2);
+}
+
+TEST(TextProcessorTests, HashTestKurdish) {
+  std::wstring text = LR"(
+    - سڵاو، چۆنی؟
+    - سڵاو! باشم، تۆ چۆنی؟
+    - منیش باشم، سوپاس.
+    )";
+  auto textProcessor = processor::TextProcessor();
+
+  uint64_t hash1 = textProcessor.hashWstring(text);
+  uint64_t hash2 = textProcessor.hashWstring(text);
+
+  EXPECT_EQ(hash1, hash2);
+}

@@ -1,4 +1,5 @@
 #include "processor/TextProcessor.h"
+#include <cstring>
 #include <stdexcept>
 #include <vector>
 
@@ -50,6 +51,20 @@ TextProcessor::computeFrequencies(const std::wstring &input) {
   }
 
   return results;
+}
+
+uint64_t TextProcessor::hashWstring(const std::wstring &input) {
+  std::string utf8;
+  icu::UnicodeString icuString = toUnicode(input);
+  icuString.toUTF8String(utf8);
+
+  unsigned char hash[SHA256_DIGEST_LENGTH];
+  SHA256(reinterpret_cast<const unsigned char *>(utf8.data()), utf8.size(),
+         hash);
+
+  uint64_t result = 0;
+  std::memcpy(&result, hash, sizeof(result));
+  return result;
 }
 
 icu::UnicodeString TextProcessor::toUnicode(const std::wstring &w) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <openssl/sha.h>
 #include <string>
 #include <unordered_map>
 
@@ -17,6 +18,8 @@ public:
 
   std::unordered_map<std::wstring, int>
   computeFrequencies(const std::wstring &input);
+
+  uint64_t hashWstring(const std::wstring &input);
 
 private:
   icu::UnicodeString toUnicode(const std::wstring &w);

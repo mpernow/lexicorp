@@ -3,6 +3,7 @@ add_library(processor
 )
 
 find_package(ICU REQUIRED COMPONENTS uc i18n data)
+find_package(OpenSSL REQUIRED)
 
 target_include_directories(processor
     PUBLIC
@@ -10,7 +11,7 @@ target_include_directories(processor
         ${ICU_INCLUDE_DIRS}
 )
 
-target_link_libraries(processor PUBLIC vsqlite::vsqlitepp ${ICU_LIBRARIES})
+target_link_libraries(processor PUBLIC vsqlite::vsqlitepp ${ICU_LIBRARIES} OpenSSL::Crypto)
 
 
 # Add test executable
