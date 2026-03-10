@@ -2,6 +2,7 @@ add_library(db
     DatabaseHandler.cpp
     WordRepository.cpp
     TextRepository.cpp
+    WordTextRepository.cpp
 )
 
 include(FetchContent)
@@ -63,10 +64,20 @@ target_link_libraries(text_repository_test
     vsqlite::vsqlitepp
 )
 
+add_executable(word_text_repository_test
+    tests/WordTextRepositoryTest.cpp
+)
+target_link_libraries(word_text_repository_test
+    gtest_main
+    db
+    vsqlite::vsqlitepp
+)
+
 # Register tests
 include(GoogleTest)
 gtest_discover_tests(db_utils_test)
 gtest_discover_tests(db_handler_test)
 gtest_discover_tests(word_repository_test)
 gtest_discover_tests(text_repository_test)
+gtest_discover_tests(word_text_repository_test)
 
