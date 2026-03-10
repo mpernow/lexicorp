@@ -20,6 +20,15 @@ body {
   font-weight: bold;
 }
 
+.center-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* vertical */
+  align-items: center; /* horizontal */
+  height: 100vh;
+  gap: 10px;
+}
+
 textarea {
   width: 250px;
   height: 40px;

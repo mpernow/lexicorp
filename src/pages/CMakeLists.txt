@@ -1,5 +1,6 @@
 add_library(pages
     InsertTextPage.cpp
+    LanguageSelectionPage.cpp
 )
 
 target_include_directories(pages
