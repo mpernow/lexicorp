@@ -1,13 +1,13 @@
 #pragma once
 
 #include "utils/Language.h"
-#include <Wt/WApplication.h>
+#include <Wt/WContainerWidget.h>
 #include <Wt/WText.h>
 #include <Wt/WTextArea.h>
 
-class LanguageSelectionPage : public Wt::WApplication {
+class LanguageSelectionPage : public Wt::WContainerWidget {
 public:
-  LanguageSelectionPage(const Wt::WEnvironment &env);
+  LanguageSelectionPage();
 
 private:
   static constexpr std::array<utils::Language, 3> languages{

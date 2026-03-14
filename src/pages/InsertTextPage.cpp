@@ -6,17 +6,12 @@
 #include "pages/InsertTextPage.h"
 #include "utils/Language.h"
 
-InsertTextPage::InsertTextPage(const Wt::WEnvironment &env,
-                               db::WordRepository &wordRepo)
-    : Wt::WApplication(env), mWordRepository(wordRepo) {
+InsertTextPage::InsertTextPage(db::WordRepository &wordRepo)
+    : mWordRepository(wordRepo) {
   mTextProcessor = std::make_unique<processor::TextProcessor>();
 
-  useStyleSheet("resources/style.css");
-
-  auto container = root()->addNew<Wt::WContainerWidget>();
+  auto container = addWidget(std::make_unique<Wt::WContainerWidget>());
   container->setStyleClass("main-container");
-
-  setTitle("LexiCorp");
 
   container->addNew<Wt::WText>("Your name, please? ");
   textEdit_ = container->addNew<Wt::WTextArea>();

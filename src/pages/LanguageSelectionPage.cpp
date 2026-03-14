@@ -5,14 +5,9 @@
 #include <Wt/WText.h>
 #include <memory>
 
-LanguageSelectionPage::LanguageSelectionPage(const Wt::WEnvironment &env)
-    : Wt::WApplication(env) {
+LanguageSelectionPage::LanguageSelectionPage() {
 
-  useStyleSheet("resources/style.css");
-
-  setTitle("LexiCorp");
-
-  auto container = root()->addNew<Wt::WContainerWidget>();
+  auto container = addWidget(std::make_unique<Wt::WContainerWidget>());
   container->setStyleClass("center-container");
 
   auto result = container->addNew<Wt::WText>("Select a language: ");
@@ -25,5 +20,6 @@ LanguageSelectionPage::LanguageSelectionPage(const Wt::WEnvironment &env)
 
   combo->changed().connect([=] {
     result->setText("You selected: " + combo->currentText().toUTF8());
+    Wt::WApplication::instance()->setInternalPath("/insert", true);
   });
 }

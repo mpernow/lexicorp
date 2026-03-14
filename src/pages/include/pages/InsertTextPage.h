@@ -2,13 +2,13 @@
 
 #include "db/WordRepository.h"
 #include "processor/TextProcessor.h"
-#include <Wt/WApplication.h>
+#include <Wt/WContainerWidget.h>
 #include <Wt/WText.h>
 #include <Wt/WTextArea.h>
 
-class InsertTextPage : public Wt::WApplication {
+class InsertTextPage : public Wt::WContainerWidget {
 public:
-  InsertTextPage(const Wt::WEnvironment &env, db::WordRepository &wordRepo);
+  InsertTextPage(db::WordRepository &wordRepo);
 
 private:
   Wt::WTextArea *textEdit_;
