@@ -14,7 +14,7 @@ LanguageSelectionPage::LanguageSelectionPage(
   container->setStyleClass("center-container");
 
   auto result = container->addNew<Wt::WText>("Select a language: ");
-  result->setStyleClass("greeting");
+  result->setStyleClass("default-text");
 
   auto combo = container->addWidget(std::make_unique<Wt::WComboBox>());
   for (utils::Language language : languages) {

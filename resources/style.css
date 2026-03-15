@@ -12,7 +12,7 @@ body {
   height: 100vh;
 }
 
-.greeting {
+.default-text {
   text-align: center;
   font-size: 28px;
   color: #3366cc;
