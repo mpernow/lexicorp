@@ -19,9 +19,7 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
 
   useStyleSheet("resources/style.css");
 
-  mDatabaseHandler = std::make_shared<db::DatabaseHandler>();
-  mWordRepository =
-      std::make_shared<db::WordRepository>(mDatabaseHandler->getConnection());
+  mAppContext = std::make_shared<AppContext>();
 
   internalPathChanged().connect(this, &LexiCorpMain::handlePath);
   handlePath(internalPath());
@@ -31,9 +29,9 @@ void LexiCorpMain::handlePath(const std::string &path) {
   root()->clear();
 
   if (path == "/") {
-    root()->addWidget(std::make_unique<LanguageSelectionPage>());
+    root()->addWidget(std::make_unique<LanguageSelectionPage>(mAppContext));
   } else if (path == "/insert") {
-    root()->addWidget(std::make_unique<InsertTextPage>(mWordRepository));
+    root()->addWidget(std::make_unique<InsertTextPage>(mAppContext));
   } else if (path == "/page2") {
     root()->addWidget(std::make_unique<Wt::WText>("This is Page 2"));
   } else {

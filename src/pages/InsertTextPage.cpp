@@ -6,8 +6,8 @@
 #include "pages/InsertTextPage.h"
 #include "utils/Language.h"
 
-InsertTextPage::InsertTextPage(std::shared_ptr<db::WordRepository> wordRepo)
-    : mWordRepository(wordRepo) {
+InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
+    : mAppContext(appContext) {
   mTextProcessor = std::make_unique<processor::TextProcessor>();
 
   auto container = addWidget(std::make_unique<Wt::WContainerWidget>());
@@ -28,7 +28,8 @@ InsertTextPage::InsertTextPage(std::shared_ptr<db::WordRepository> wordRepo)
     std::unordered_map<std::wstring, int> wordCounts =
         mTextProcessor->computeFrequencies(textEdit_->text().value());
 
-    mWordRepository->updateFrequencies(wordCounts, utils::Language::Unknown);
+    mAppContext->wordRepository->updateFrequencies(wordCounts,
+                                                   utils::Language::Unknown);
     std::wstring outputText = L"";
     for (const auto &[word, count] : wordCounts) {
       outputText += word + L": " + std::to_wstring(count) + L"\n";
