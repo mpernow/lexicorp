@@ -8,11 +8,11 @@
 
 class InsertTextPage : public Wt::WContainerWidget {
 public:
-  InsertTextPage(db::WordRepository &wordRepo);
+  InsertTextPage(std::shared_ptr<db::WordRepository> wordRepo);
 
 private:
   Wt::WTextArea *textEdit_;
   Wt::WText *greeting_;
   std::unique_ptr<processor::TextProcessor> mTextProcessor;
-  db::WordRepository &mWordRepository;
+  std::shared_ptr<db::WordRepository> mWordRepository;
 };
