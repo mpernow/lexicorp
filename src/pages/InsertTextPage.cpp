@@ -2,6 +2,7 @@
 #include <Wt/WCheckBox.h>
 #include <Wt/WContainerWidget.h>
 
+#include "db/WordText.h"
 #include "pages/InsertTextPage.h"
 #include "utils/Language.h"
 
@@ -34,7 +35,8 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
 }
 
 void InsertTextPage::process() {
-  mWordCounts = mTextProcessor->computeFrequencies(textEdit_->text().value());
+  mText = textEdit_->text().value();
+  mWordCounts = mTextProcessor->computeFrequencies(mText);
 
   mWordTable->clear();
   mWordTable->elementAt(0, 0)->addWidget(std::make_unique<Wt::WText>("Word"));
@@ -77,22 +79,21 @@ void InsertTextPage::process() {
     row++;
   }
 
+  mHash = mTextProcessor->hashWstring(mText);
   mSubmitButton->show();
 }
 
 void InsertTextPage::submit() {
-  // mAppContext->wordRepository->updateFrequencies(wordCounts,
-  //                                                utils::Language::Unknown);
-  //
-  ////
-  //
-  std::wstring outputText = L"";
+  std::vector<db::models::Word> wordsToSave;
   for (const RowData row : mRows) {
     if (row.include) {
-
-      outputText += row.word + L": " + std::to_wstring(row.count) + L"\n";
+      wordsToSave.emplace_back(row.word, row.count, row.known,
+                               mAppContext->selectedLanguage);
+      mAppContext->wordTextRepository->add(db::models::WordText{
+          row.word, static_cast<int>(mHash), mAppContext->selectedLanguage});
     }
   }
-  mResultsText->setText(outputText);
-  mResultsText->setTextFormat(Wt::TextFormat::Plain);
+  mAppContext->wordRepository->updateFrequencies(wordsToSave);
+  mAppContext->textRepository->add(db::models::Text{
+      mText, static_cast<int>(mHash), mAppContext->selectedLanguage, L""});
 }

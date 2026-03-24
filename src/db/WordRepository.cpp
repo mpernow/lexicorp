@@ -100,4 +100,29 @@ void WordRepository::updateFrequencies(
   tx.commit();
 }
 
+void WordRepository::updateFrequencies(const std::vector<models::Word> &words) {
+
+  auto tx = sqlite::transaction{mDbConn};
+
+  for (const auto &word : words) {
+    std::string utf8Word = Utils::toUtf8(word.word);
+
+    // Create command locally inside the loop
+    // TODO: This is needed due to some lifetime issue, investigate!
+    sqlite::command upsert{
+        mDbConn,
+        "INSERT INTO words(word, numOccurrences, known, language) "
+        "VALUES(?, ?, ?, ?) "
+        "ON CONFLICT(word, language) DO UPDATE SET "
+        "numOccurrences = words.numOccurrences + excluded.numOccurrences, "
+        "known = words.known OR excluded.known"};
+
+    upsert % utf8Word % word.numOccurrences % word.known %
+        utils::to_string(word.language);
+    upsert();
+  }
+
+  tx.commit();
+}
+
 } // namespace db

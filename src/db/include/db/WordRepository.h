@@ -18,6 +18,7 @@ public:
   void
   updateFrequencies(const std::unordered_map<std::wstring, int> &frequencies,
                     const utils::Language &language) override;
+  void updateFrequencies(const std::vector<models::Word> &words) override;
 
 private:
   sqlite::connection &mDbConn;

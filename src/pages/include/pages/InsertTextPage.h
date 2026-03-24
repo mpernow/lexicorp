@@ -30,4 +30,7 @@ private:
   std::unique_ptr<processor::TextProcessor> mTextProcessor;
   std::shared_ptr<AppContext> mAppContext;
   std::vector<RowData> mRows;
+  std::wstring mText;
+  std::wstring mSource;
+  uint64_t mHash;
 };
