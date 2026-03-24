@@ -44,9 +44,11 @@ WordRepository::getByText(const std::wstring &text,
   return std::nullopt;
 }
 
-std::vector<models::Word> WordRepository::getAll() {
-  sqlite::query q{mDbConn,
-                  "SELECT word, numOccurrences, known, language FROM words"};
+std::vector<models::Word>
+WordRepository::getAll(const utils::Language &language) {
+  sqlite::query q{mDbConn, "SELECT word, numOccurrences, known, language FROM "
+                           "words WHERE language = ?"};
+  q.bind(1, utils::to_string(language));
   sqlite::result_type res = q.get_result();
 
   std::vector<models::Word> words;

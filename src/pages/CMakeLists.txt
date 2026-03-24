@@ -2,6 +2,7 @@ add_library(pages
     InsertTextPage.cpp
     LanguageSelectionPage.cpp
     LexiCorpMain.cpp
+    DisplayWordsPage.cpp
 )
 
 target_include_directories(pages

@@ -1,5 +1,5 @@
 #include "pages/LexiCorpMain.h"
-#include "db/DatabaseHandler.h"
+#include "pages/DisplayWordsPage.h"
 #include "pages/InsertTextPage.h"
 #include "pages/LanguageSelectionPage.h"
 #include <Wt/WApplication.h>
@@ -32,6 +32,8 @@ void LexiCorpMain::handlePath(const std::string &path) {
     root()->addWidget(std::make_unique<LanguageSelectionPage>(mAppContext));
   } else if (path == "/insert") {
     root()->addWidget(std::make_unique<InsertTextPage>(mAppContext));
+  } else if (path == "/list") {
+    root()->addWidget(std::make_unique<DisplayWordsPage>(mAppContext));
   } else if (path == "/page2") {
     root()->addWidget(std::make_unique<Wt::WText>("This is Page 2"));
   } else {

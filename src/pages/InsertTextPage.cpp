@@ -1,10 +1,10 @@
+#include <Wt/WApplication.h>
 #include <Wt/WBreak.h>
 #include <Wt/WCheckBox.h>
 #include <Wt/WContainerWidget.h>
 
 #include "db/WordText.h"
 #include "pages/InsertTextPage.h"
-#include "utils/Language.h"
 
 InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
     : mAppContext(appContext) {
@@ -96,4 +96,6 @@ void InsertTextPage::submit() {
   mAppContext->wordRepository->updateFrequencies(wordsToSave);
   mAppContext->textRepository->add(db::models::Text{
       mText, static_cast<int>(mHash), mAppContext->selectedLanguage, L""});
+
+  Wt::WApplication::instance()->setInternalPath("/list", true);
 }

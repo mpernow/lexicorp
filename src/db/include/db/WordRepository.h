@@ -13,7 +13,7 @@ public:
   void add(const models::Word &word) override;
   std::optional<models::Word>
   getByText(const std::wstring &text, const utils::Language &language) override;
-  std::vector<models::Word> getAll() override;
+  std::vector<models::Word> getAll(const utils::Language &language) override;
   void update(const models::Word &word) override;
   void
   updateFrequencies(const std::unordered_map<std::wstring, int> &frequencies,
