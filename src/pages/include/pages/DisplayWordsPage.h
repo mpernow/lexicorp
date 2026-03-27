@@ -16,10 +16,16 @@ private:
   struct RowData {
     std::wstring word;
     int count;
+    bool known;
   };
+
+  void buildTable();
+  void sortRows();
+
   Wt::WTextArea *textEdit_;
   Wt::WText *mResultsText;
   Wt::WTable *mWordTable;
   std::shared_ptr<AppContext> mAppContext;
   std::vector<RowData> mRows;
+  bool mAscending = false;
 };
