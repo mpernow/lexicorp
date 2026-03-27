@@ -21,11 +21,14 @@ private:
 
   void buildTable();
   void sortRows();
+  void rebuildRows();
 
   Wt::WTextArea *textEdit_;
   Wt::WText *mResultsText;
   Wt::WTable *mWordTable;
   std::shared_ptr<AppContext> mAppContext;
   std::vector<RowData> mRows;
+  std::vector<RowData> mFilteredRows;
   bool mAscending = false;
+  bool mShowUnknownOnly = false;
 };

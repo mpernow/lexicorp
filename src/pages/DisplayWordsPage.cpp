@@ -16,6 +16,18 @@ DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
 
   container->addNew<Wt::WBreak>();
 
+  auto toggleBtn = container->addNew<Wt::WPushButton>("Show Unknown Only");
+
+  toggleBtn->clicked().connect([=] {
+    mShowUnknownOnly = !mShowUnknownOnly;
+
+    toggleBtn->setText(mShowUnknownOnly ? "Show All" : "Show Unknown Only");
+
+    rebuildRows();
+  });
+
+  container->addNew<Wt::WBreak>();
+
   mWordTable = container->addNew<Wt::WTable>();
 
   mRows.clear();
@@ -26,6 +38,19 @@ DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
     return a.count > b.count;
   });
 
+  rebuildRows();
+}
+
+void DisplayWordsPage::rebuildRows() {
+  mFilteredRows.clear();
+
+  for (const auto &r : mRows) {
+    if (!mShowUnknownOnly || !r.known) {
+      mFilteredRows.push_back(r);
+    }
+  }
+
+  sortRows();
   buildTable();
 }
 
@@ -48,7 +73,7 @@ void DisplayWordsPage::buildTable() {
   mWordTable->elementAt(0, 2)->addWidget(std::make_unique<Wt::WText>("Known?"));
 
   int row = 1;
-  for (auto &r : mRows) {
+  for (auto &r : mFilteredRows) {
 
     mWordTable->elementAt(row, 0)->addWidget(
         std::make_unique<Wt::WText>(r.word));
@@ -57,14 +82,14 @@ void DisplayWordsPage::buildTable() {
         std::make_unique<Wt::WText>(std::to_string(r.count)));
 
     mWordTable->elementAt(row, 2)->addWidget(
-        std::make_unique<Wt::WText>(r.known ? "Yes" : "No"));
+        std::make_unique<Wt::WText>(r.known ? "✔" : "✘"));
 
     row++;
   }
 }
 
 void DisplayWordsPage::sortRows() {
-  std::sort(mRows.begin(), mRows.end(),
+  std::sort(mFilteredRows.begin(), mFilteredRows.end(),
             [this](const RowData &a, const RowData &b) {
               if (mAscending) {
                 return a.count < b.count;
