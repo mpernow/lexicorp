@@ -30,7 +30,7 @@ std::optional<models::WordText>
 WordTextRepository::getByHash(const int textHash,
                               const utils::Language language) {
   sqlite::query q{mDbConn,
-                  "SELECT word, text_hash, language "
+                  "SELECT word, text_hash, numOccurrences, language "
                   "FROM word_text WHERE text_hash = ? AND language = ? "
                   "LIMIT 1"};
 
@@ -51,7 +51,7 @@ WordTextRepository::getByHash(const int textHash,
 std::optional<models::WordText>
 WordTextRepository::getByWord(const std::wstring &word,
                               const utils::Language language) {
-  sqlite::query q{mDbConn, "SELECT word, text_hash, language "
+  sqlite::query q{mDbConn, "SELECT word, text_hash, numOccurrences, language "
                            "FROM word_text WHERE word = ? AND language = ? "
                            "LIMIT 1"};
 

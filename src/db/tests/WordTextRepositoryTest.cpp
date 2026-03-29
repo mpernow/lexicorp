@@ -7,7 +7,7 @@
 #include <sqlite/query.hpp>
 #include <string>
 
-TEST(TextRepositoryTests, InsertWordTextTest) {
+TEST(WordTextRepositoryTests, InsertWordTextTest) {
   // Create DatabaseHandler with in-memory database
   std::string dbName = ":memory:";
   auto dbHandler = db::DatabaseHandler{dbName};
