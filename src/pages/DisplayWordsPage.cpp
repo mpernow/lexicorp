@@ -84,6 +84,24 @@ void DisplayWordsPage::buildTable() {
     mWordTable->elementAt(row, 2)->addWidget(
         std::make_unique<Wt::WText>(r.known ? "✔" : "✘"));
 
+    if (!r.known) {
+      auto makeKnownButton =
+          std::make_unique<Wt::WPushButton>("I know this one!");
+
+      makeKnownButton->clicked().connect([=] {
+        for (RowData &row : mRows) {
+          if (row.word == r.word) {
+            row.known = true;
+          }
+        }
+        rebuildRows();
+        mAppContext->wordRepository->update(db::models::Word{
+            r.word, r.count, true, mAppContext->selectedLanguage});
+      });
+
+      mWordTable->elementAt(row, 3)->addWidget(std::move(makeKnownButton));
+    }
+
     row++;
   }
 }
