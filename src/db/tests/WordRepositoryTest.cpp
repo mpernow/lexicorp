@@ -34,7 +34,7 @@ TEST(WordRepositoryTests, InsertMultipleWordsTest) {
   wordRepository.add(word);
   wordRepository.add(word2);
 
-  auto words = wordRepository.getAll();
+  auto words = wordRepository.getAll(utils::Language::Unknown);
 
   ASSERT_EQ(words.size(), 2);
 
