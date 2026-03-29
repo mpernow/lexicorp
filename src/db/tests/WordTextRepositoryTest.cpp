@@ -14,7 +14,7 @@ TEST(TextRepositoryTests, InsertWordTextTest) {
   auto wordTextRepository = db::WordTextRepository{dbHandler.getConnection()};
 
   db::models::WordText wordText = db::models::WordText(
-      L"Some text goes here", 12345, utils::Language::English);
+      L"Some text goes here", 12345, 1, utils::Language::English);
   wordTextRepository.add(wordText);
 
   auto dbWordText =
@@ -32,9 +32,9 @@ TEST(TextRepositoryTests, InsertMultipleLanguagesTest) {
   auto wordTextRepository = db::WordTextRepository{dbHandler.getConnection()};
 
   db::models::WordText wordText1 =
-      db::models::WordText(L"cinema", 12345, utils::Language::English);
+      db::models::WordText(L"cinema", 12345, 2, utils::Language::English);
   db::models::WordText wordText2 =
-      db::models::WordText(L"cinema", 54321, utils::Language::French);
+      db::models::WordText(L"cinema", 54321, 3, utils::Language::French);
   wordTextRepository.add(wordText1);
   wordTextRepository.add(wordText2);
 

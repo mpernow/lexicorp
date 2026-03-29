@@ -16,12 +16,13 @@ WordTextRepository::WordTextRepository(sqlite::connection &dbConn)
 WordTextRepository::~WordTextRepository() = default;
 
 void WordTextRepository::add(const models::WordText &wordText) {
-  sqlite::command insert{mDbConn,
-                         "INSERT INTO word_text(word, text_hash, language) "
-                         "VALUES(?, ?, ?)"};
+  sqlite::command insert{
+      mDbConn,
+      "INSERT INTO word_text(word, text_hash, numOccurrences, language) "
+      "VALUES(?, ?, ?, ?)"};
 
   insert % Utils::toUtf8(wordText.word) % wordText.textHash %
-      utils::to_string(wordText.language);
+      wordText.numOccurrences % utils::to_string(wordText.language);
   insert();
 }
 
@@ -40,7 +41,8 @@ WordTextRepository::getByHash(const int textHash,
     return models::WordText{
         .word = Utils::fromUtf8(row.get<std::string>(0)),
         .textHash = row.get<int>(1),
-        .language = utils::language_from_string(row.get<std::string>(2)),
+        .numOccurrences = row.get<int>(2),
+        .language = utils::language_from_string(row.get<std::string>(3)),
     };
   }
   return std::nullopt;
@@ -60,7 +62,8 @@ WordTextRepository::getByWord(const std::wstring &word,
     return models::WordText{
         .word = Utils::fromUtf8(row.get<std::string>(0)),
         .textHash = row.get<int>(1),
-        .language = utils::language_from_string(row.get<std::string>(2)),
+        .numOccurrences = row.get<int>(2),
+        .language = utils::language_from_string(row.get<std::string>(3)),
     };
   }
   return std::nullopt;

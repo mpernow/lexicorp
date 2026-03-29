@@ -89,8 +89,9 @@ void InsertTextPage::submit() {
     if (row.include) {
       wordsToSave.emplace_back(row.word, row.count, row.known,
                                mAppContext->selectedLanguage);
-      mAppContext->wordTextRepository->add(db::models::WordText{
-          row.word, static_cast<int>(mHash), mAppContext->selectedLanguage});
+      mAppContext->wordTextRepository->add(
+          db::models::WordText{row.word, static_cast<int>(mHash), row.count,
+                               mAppContext->selectedLanguage});
     }
   }
   mAppContext->wordRepository->updateFrequencies(wordsToSave);
