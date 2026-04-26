@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Wt/WApplication.h>
+#include <Wt/WComboBox.h>
 #include <db/DatabaseHandler.h>
 #include <db/WordRepository.h>
 #include <pages/AppContext.h>
@@ -14,5 +15,8 @@ public:
 private:
   void handlePath(const std::string &path);
   std::shared_ptr<AppContext> mAppContext;
-  Wt::WText *mLanguageText;
+  Wt::WComboBox *mLanguageCombo;
+  static constexpr std::array<utils::Language, 3> languages{
+      utils::Language::English, utils::Language::French,
+      utils::Language::Kurdish};
 };

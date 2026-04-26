@@ -31,10 +31,30 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   sidebar->setStyleClass("sidebar bg-light p-3");
   sidebar->setWidth(250);
 
-  // --- Content area ---
-  auto languageText = sidebar->addWidget(std::make_unique<Wt::WText>());
-  languageText->setStyleClass("mb-3 fw-bold");
-  mLanguageText = languageText;
+  sidebar->addWidget(std::make_unique<Wt::WText>("Language"));
+
+  auto languageCombo = sidebar->addWidget(std::make_unique<Wt::WComboBox>());
+  languageCombo->setStyleClass("form-select mb-3");
+  mLanguageCombo = languageCombo;
+
+  for (utils::Language language : languages) {
+    languageCombo->addItem(utils::to_string(language));
+  }
+  languageCombo->changed().connect([this] {
+    std::string selected = mLanguageCombo->currentText().toUTF8();
+
+    mAppContext->selectedLanguage = utils::language_from_string(selected);
+    mAppContext->languageChanged.emit(selected);
+  });
+  mAppContext->languageChanged.connect([this](const std::string &lang) {
+    for (int i = 0; i < mLanguageCombo->count(); ++i) {
+      if (mLanguageCombo->itemText(i).toUTF8() == lang) {
+        mLanguageCombo->setCurrentIndex(i);
+        break;
+      }
+    }
+  });
+
   auto stack = std::make_unique<Wt::WStackedWidget>();
 
   // Keep raw pointer before moving ownership
@@ -68,19 +88,5 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   // Default route
   if (internalPath().empty() || internalPath() == "/") {
     setInternalPath("/", true);
-  }
-
-  updateLanguageDisplay();
-  mAppContext->languageChanged.connect(this,
-                                       &LexiCorpMain::updateLanguageDisplay);
-}
-
-void LexiCorpMain::updateLanguageDisplay() {
-  if (utils::to_string(mAppContext->selectedLanguage).empty()) {
-    mLanguageText->setText("No language selected");
-  } else {
-    mLanguageText->setTextFormat(Wt::TextFormat::XHTML);
-    mLanguageText->setText("<strong>Language:</strong><br/>" +
-                           utils::to_string(mAppContext->selectedLanguage));
   }
 }
