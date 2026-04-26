@@ -23,6 +23,7 @@ private:
   void process();
   void submit();
   Wt::WTextArea *textEdit_;
+  Wt::WTextArea *mSourceTextArea;
   Wt::WText *mResultsText;
   Wt::WTable *mWordTable;
   Wt::WPushButton *mSubmitButton;

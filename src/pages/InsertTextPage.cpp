@@ -12,10 +12,15 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
 
   auto container = addWidget(std::make_unique<Wt::WContainerWidget>());
   container->setStyleClass("main-container");
+  container->resize(Wt::WLength("100%"), Wt::WLength("100%"));
+  container->setOverflow(Wt::Overflow::Auto);
 
   container->addNew<Wt::WText>("Enter your text here");
   textEdit_ = container->addNew<Wt::WTextArea>();
   textEdit_->setStyleClass("textarea");
+
+  container->addNew<Wt::WText>("Source: ");
+  mSourceTextArea = container->addNew<Wt::WTextArea>();
 
   Wt::WPushButton *button = container->addNew<Wt::WPushButton>("Process");
   button->setStyleClass("button");
@@ -24,7 +29,9 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
 
   button->clicked().connect(this, &InsertTextPage::process);
 
-  mWordTable = container->addNew<Wt::WTable>();
+  auto tableContainer = container->addNew<Wt::WContainerWidget>();
+  tableContainer->setStyleClass("table-container");
+  mWordTable = tableContainer->addNew<Wt::WTable>();
 
   mSubmitButton = container->addNew<Wt::WPushButton>("Submit");
   mSubmitButton->clicked().connect(this, &InsertTextPage::submit);
@@ -37,6 +44,8 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
 void InsertTextPage::process() {
   mText = textEdit_->text().value();
   mWordCounts = mTextProcessor->computeFrequencies(mText);
+
+  mSource = mSourceTextArea->text().value();
 
   mWordTable->clear();
   mWordTable->elementAt(0, 0)->addWidget(std::make_unique<Wt::WText>("Word"));
@@ -96,7 +105,7 @@ void InsertTextPage::submit() {
   }
   mAppContext->wordRepository->updateFrequencies(wordsToSave);
   mAppContext->textRepository->add(db::models::Text{
-      mText, static_cast<int>(mHash), mAppContext->selectedLanguage, L""});
+      mText, static_cast<int>(mHash), mAppContext->selectedLanguage, mSource});
 
   Wt::WApplication::instance()->setInternalPath("/list", true);
 }
