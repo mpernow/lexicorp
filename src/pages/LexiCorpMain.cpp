@@ -83,7 +83,12 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
 
   // --- Add to layout ---
   mainLayout->addWidget(std::move(sidebar));
-  mainLayout->addWidget(std::move(stack), 1); // stretch content
+
+  auto content =
+      mainLayout->addWidget(std::make_unique<Wt::WContainerWidget>(), 1);
+  content->setOverflow(Wt::Overflow::Auto);
+
+  content->addWidget(std::move(stack));
 
   // Default route
   if (internalPath().empty() || internalPath() == "/") {
