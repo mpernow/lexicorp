@@ -8,11 +8,10 @@
 DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
     : mAppContext(appContext) {
 
+  mAppContext->languageChanged.connect(this, &DisplayWordsPage::loadData);
+
   auto container = addWidget(std::make_unique<Wt::WContainerWidget>());
   container->setStyleClass("main-container");
-
-  std::vector<db::models::Word> words =
-      mAppContext->wordRepository->getAll(mAppContext->selectedLanguage);
 
   container->addNew<Wt::WBreak>();
 
@@ -29,6 +28,13 @@ DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
   container->addNew<Wt::WBreak>();
 
   mWordTable = container->addNew<Wt::WTable>();
+
+  loadData();
+}
+
+void DisplayWordsPage::loadData() {
+  std::vector<db::models::Word> words =
+      mAppContext->wordRepository->getAll(mAppContext->selectedLanguage);
 
   mRows.clear();
   for (const db::models::Word word : words) {

@@ -6,11 +6,12 @@
 #include <Wt/WTable.h>
 #include <Wt/WText.h>
 #include <Wt/WTextArea.h>
-#include <unordered_map>
 
 class DisplayWordsPage : public Wt::WContainerWidget {
 public:
   DisplayWordsPage(std::shared_ptr<AppContext> appContext);
+
+  void loadData();
 
 private:
   struct RowData {

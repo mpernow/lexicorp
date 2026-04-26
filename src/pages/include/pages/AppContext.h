@@ -6,6 +6,7 @@
 #include "db/WordRepository.h"
 #include "db/WordTextRepository.h"
 #include "utils/Language.h"
+#include <Wt/WSignal.h>
 
 class AppContext {
 public:
@@ -20,6 +21,7 @@ public:
   }
 
   utils::Language selectedLanguage;
+  Wt::Signal<std::string> languageChanged;
 
   std::shared_ptr<db::DatabaseHandler> dbHandler;
   std::shared_ptr<db::WordRepository> wordRepository;

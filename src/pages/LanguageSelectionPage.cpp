@@ -29,8 +29,10 @@ LanguageSelectionPage::LanguageSelectionPage(
   });
 
   button->clicked().connect([this, combo] {
-    mAppContext->selectedLanguage =
-        utils::language_from_string(combo->currentText().toUTF8());
+    auto lang = combo->currentText().toUTF8();
+    auto newLang = utils::language_from_string(lang);
+    mAppContext->selectedLanguage = newLang;
+    mAppContext->languageChanged.emit(utils::to_string(newLang));
     Wt::WApplication::instance()->setInternalPath("/insert", true);
   });
 }
