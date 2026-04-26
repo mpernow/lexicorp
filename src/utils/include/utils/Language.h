@@ -24,7 +24,7 @@ inline Language language_from_string(const std::string &str) {
   static const std::unordered_map<std::string, Language> mapping = {
       {"English", Language::English},
       {"French", Language::French},
-      {"German", Language::Kurdish},
+      {"Kurdish", Language::Kurdish},
       {"Unknown", Language::Unknown}};
 
   auto it = mapping.find(str);
