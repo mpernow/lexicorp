@@ -22,6 +22,8 @@ public:
 
   utils::Language selectedLanguage;
   Wt::Signal<std::string> languageChanged;
+  Wt::Signal<> wordSelected;
+  std::wstring selectedWord;
 
   std::shared_ptr<db::DatabaseHandler> dbHandler;
   std::shared_ptr<db::WordRepository> wordRepository;

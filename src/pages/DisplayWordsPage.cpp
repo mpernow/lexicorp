@@ -1,3 +1,4 @@
+#include <Wt/WApplication.h>
 #include <Wt/WBreak.h>
 #include <Wt/WCheckBox.h>
 #include <Wt/WContainerWidget.h>
@@ -78,17 +79,17 @@ void DisplayWordsPage::buildTable() {
   mWordTable->elementAt(0, 1)->addWidget(std::move(countText));
   mWordTable->elementAt(0, 2)->addWidget(std::make_unique<Wt::WText>("Known?"));
 
-  int row = 1;
+  int rowCount = 1;
   for (auto &r : mFilteredRows) {
 
-    mWordTable->elementAt(row, 0)->addWidget(
-        std::make_unique<Wt::WText>(r.word));
+    mWordTable->elementAt(rowCount, 0)
+        ->addWidget(std::make_unique<Wt::WText>(r.word));
 
-    mWordTable->elementAt(row, 1)->addWidget(
-        std::make_unique<Wt::WText>(std::to_string(r.count)));
+    mWordTable->elementAt(rowCount, 1)
+        ->addWidget(std::make_unique<Wt::WText>(std::to_string(r.count)));
 
-    mWordTable->elementAt(row, 2)->addWidget(
-        std::make_unique<Wt::WText>(r.known ? "✔" : "✘"));
+    mWordTable->elementAt(rowCount, 2)
+        ->addWidget(std::make_unique<Wt::WText>(r.known ? "✔" : "✘"));
 
     if (!r.known) {
       auto makeKnownButton =
@@ -105,10 +106,18 @@ void DisplayWordsPage::buildTable() {
             r.word, r.count, true, mAppContext->selectedLanguage});
       });
 
-      mWordTable->elementAt(row, 3)->addWidget(std::move(makeKnownButton));
+      mWordTable->elementAt(rowCount, 3)->addWidget(std::move(makeKnownButton));
     }
 
-    row++;
+    auto viewSourceButton = std::make_unique<Wt::WPushButton>("View source");
+    viewSourceButton->clicked().connect([=] {
+      mAppContext->selectedWord = r.word;
+      mAppContext->wordSelected.emit();
+      Wt::WApplication::instance()->setInternalPath("/source", true);
+    });
+    mWordTable->elementAt(rowCount, 4)->addWidget(std::move(viewSourceButton));
+
+    rowCount++;
   }
 }
 

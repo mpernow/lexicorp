@@ -2,6 +2,7 @@
 #include "pages/DisplayWordsPage.h"
 #include "pages/InsertTextPage.h"
 #include "pages/LanguageSelectionPage.h"
+#include "pages/ViewSourcePage.h"
 
 #include <Wt/WApplication.h>
 #include <Wt/WBootstrapTheme.h>
@@ -55,40 +56,34 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
     }
   });
 
-  auto stack = std::make_unique<Wt::WStackedWidget>();
+  auto content =
+      mainLayout->addWidget(std::make_unique<Wt::WContainerWidget>(), 1);
+  content->setOverflow(Wt::Overflow::Auto);
 
-  // Keep raw pointer before moving ownership
-  Wt::WStackedWidget *stackPtr = stack.get();
+  auto stack = content->addWidget(std::make_unique<Wt::WStackedWidget>());
 
-  // --- Menu (linked to stacked widget) ---
-  auto menu = std::make_unique<Wt::WMenu>(stackPtr);
+  auto menu = std::make_unique<Wt::WMenu>(stack);
   menu->setStyleClass("nav flex-column nav-stacked");
 
   // Enable URL routing
   menu->setInternalPathEnabled();
 
-  // --- Pages ---
-  auto langPage = std::make_unique<LanguageSelectionPage>(mAppContext);
-  auto insertPage = std::make_unique<InsertTextPage>(mAppContext);
-  auto listPage = std::make_unique<DisplayWordsPage>(mAppContext);
-
   // --- Menu items with URL paths ---
-  menu->addItem("Language", std::move(langPage))->setPathComponent("");
-  menu->addItem("Insert Text", std::move(insertPage))
+  menu->addItem("Language",
+                std::make_unique<LanguageSelectionPage>(mAppContext))
+      ->setPathComponent("");
+  menu->addItem("Insert Text", std::make_unique<InsertTextPage>(mAppContext))
       ->setPathComponent("insert");
-  menu->addItem("Word List", std::move(listPage))->setPathComponent("list");
+  menu->addItem("Word List", std::make_unique<DisplayWordsPage>(mAppContext))
+      ->setPathComponent("list");
+  menu->addItem("View source", std::make_unique<ViewSourcePage>(mAppContext))
+      ->setPathComponent("source");
 
   // --- Add menu to sidebar ---
   sidebar->addWidget(std::move(menu));
 
   // --- Add to layout ---
   mainLayout->addWidget(std::move(sidebar));
-
-  auto content =
-      mainLayout->addWidget(std::make_unique<Wt::WContainerWidget>(), 1);
-  content->setOverflow(Wt::Overflow::Auto);
-
-  content->addWidget(std::move(stack));
 
   // Default route
   if (internalPath().empty() || internalPath() == "/") {
