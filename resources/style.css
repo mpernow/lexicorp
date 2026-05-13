@@ -79,3 +79,11 @@ button {
   line-height: 1.6;
   font-size: 15px;
 }
+
+.highlight-word {
+  color: #3366cc;
+  font-weight: bold;
+  background: rgba(51, 102, 204, 0.12);
+  border-radius: 3px;
+  padding: 0 2px;
+}
