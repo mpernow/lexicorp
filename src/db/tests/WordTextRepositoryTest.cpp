@@ -49,16 +49,17 @@ TEST(TextRepositoryTests, InsertMultipleLanguagesTest) {
   EXPECT_EQ(dbWordText2->word, wordText2.word);
   EXPECT_EQ(dbWordText2->textHash, wordText2.textHash);
 
+  // TODO: better tests for vector-valued type
   auto dbWordText11 =
-      wordTextRepository.getByWord(L"cinema", utils::Language::English);
+      wordTextRepository.getByWord(L"cinema", utils::Language::English)[0];
   auto dbWordText22 =
-      wordTextRepository.getByWord(L"cinema", utils::Language::French);
+      wordTextRepository.getByWord(L"cinema", utils::Language::French)[0];
 
-  EXPECT_EQ(dbWordText11->word, wordText1.word);
-  EXPECT_EQ(dbWordText11->textHash, wordText1.textHash);
+  EXPECT_EQ(dbWordText11.word, wordText1.word);
+  EXPECT_EQ(dbWordText11.textHash, wordText1.textHash);
 
-  EXPECT_EQ(dbWordText22->word, wordText2.word);
-  EXPECT_EQ(dbWordText22->textHash, wordText2.textHash);
+  EXPECT_EQ(dbWordText22.word, wordText2.word);
+  EXPECT_EQ(dbWordText22.textHash, wordText2.textHash);
 
   auto dbWordTextEmpty1 =
       wordTextRepository.getByHash(12345, utils::Language::French);
