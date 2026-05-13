@@ -41,11 +41,12 @@ void ViewSourcePage::WordSelected() {
   }
 
   for (db::models::Text t : mTextsVec) {
-    mTextsContainer->addNew<Wt::WText>(
-        Wt::WString::fromUTF8(db::Utils::toUtf8(t.text)));
+    auto textBlock = mTextsContainer->addNew<Wt::WContainerWidget>();
+    textBlock->setStyleClass("source-block");
 
-    // Spacing
-    mTextsContainer->addNew<Wt::WBreak>();
-    mTextsContainer->addNew<Wt::WBreak>();
+    auto textWidget = textBlock->addNew<Wt::WText>(
+        Wt::WString::fromUTF8(db::Utils::toUtf8(t.text)));
+    textWidget->setInline(false);
+    textWidget->setStyleClass("source-text");
   }
 }
