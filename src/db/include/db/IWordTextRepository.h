@@ -3,6 +3,7 @@
 
 #include <optional>
 #include <utils/Language.h>
+#include <vector>
 
 namespace db {
 class IWordTextRepository {
@@ -12,7 +13,7 @@ public:
   virtual void add(const models::WordText &wordText) = 0;
   virtual std::optional<models::WordText>
   getByHash(const int hash, const utils::Language language) = 0;
-  virtual std::optional<models::WordText>
+  virtual std::vector<models::WordText>
   getByWord(const std::wstring &word, const utils::Language language) = 0;
 };
 } // namespace db

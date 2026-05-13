@@ -13,7 +13,7 @@ public:
   void add(const models::WordText &wordText) override;
   std::optional<models::WordText>
   getByHash(const int textHash, const utils::Language language) override;
-  std::optional<models::WordText>
+  std::vector<models::WordText>
   getByWord(const std::wstring &word, const utils::Language language) override;
 
 private:

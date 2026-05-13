@@ -48,24 +48,25 @@ WordTextRepository::getByHash(const int textHash,
   return std::nullopt;
 }
 
-std::optional<models::WordText>
+std::vector<models::WordText>
 WordTextRepository::getByWord(const std::wstring &word,
                               const utils::Language language) {
   sqlite::query q{mDbConn, "SELECT word, text_hash, numOccurrences, language "
-                           "FROM word_text WHERE word = ? AND language = ? "
-                           "LIMIT 1"};
+                           "FROM word_text WHERE word = ? AND language = ?"};
 
   q.bind(1, Utils::toUtf8(word));
   q.bind(2, utils::to_string(language));
 
+  std::vector<models::WordText> results;
+
   for (auto &row : q.each()) {
-    return models::WordText{
+    results.push_back(models::WordText{
         .word = Utils::fromUtf8(row.get<std::string>(0)),
         .textHash = row.get<int>(1),
         .numOccurrences = row.get<int>(2),
         .language = utils::language_from_string(row.get<std::string>(3)),
-    };
+    });
   }
-  return std::nullopt;
+  return results;
 }
 } // namespace db
