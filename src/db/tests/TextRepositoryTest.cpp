@@ -2,8 +2,10 @@
 #include "db/DatabaseHandler.h"
 #include "db/Text.h"
 #include "utils/Language.h"
+#include <algorithm>
 #include <gtest/gtest.h>
 #include <sqlite/connection.hpp>
+#include <sqlite/database_exception.hpp>
 #include <sqlite/query.hpp>
 #include <string>
 
@@ -20,6 +22,7 @@ TEST(TextRepositoryTests, InsertTextTest) {
 
   auto dbText = textRepository.getByHash(12345);
 
+  ASSERT_TRUE(dbText.has_value());
   EXPECT_EQ(text.text, dbText->text);
   EXPECT_EQ(text.hash, dbText->hash);
   EXPECT_EQ(text.language, dbText->language);
@@ -55,6 +58,37 @@ TEST(TextRepositoryTests, InsertMultipleTextsTest) {
   ASSERT_NE(it2, texts.end());
 
   EXPECT_EQ(it1->text, L"Some text goes here");
+  EXPECT_EQ(it1->language, utils::Language::English);
 
   EXPECT_EQ(it2->text, L"Une texte va içi");
+  EXPECT_EQ(it2->language, utils::Language::French);
+}
+
+TEST(TextRepositoryTests, GetByHashMissingReturnsNullopt) {
+  std::string dbName = ":memory:";
+  auto dbHandler = db::DatabaseHandler{dbName};
+  auto textRepository = db::TextRepository{dbHandler.getConnection()};
+
+  EXPECT_FALSE(textRepository.getByHash(404).has_value());
+}
+
+TEST(TextRepositoryTests, GetAllOnEmptyTableReturnsEmpty) {
+  std::string dbName = ":memory:";
+  auto dbHandler = db::DatabaseHandler{dbName};
+  auto textRepository = db::TextRepository{dbHandler.getConnection()};
+
+  EXPECT_TRUE(textRepository.getAll().empty());
+}
+
+// `hash` is the primary key, so re-inserting the same text (same hash) must
+// surface as an exception, not a silent no-op or a duplicate row.
+TEST(TextRepositoryTests, DuplicateHashInsertThrows) {
+  std::string dbName = ":memory:";
+  auto dbHandler = db::DatabaseHandler{dbName};
+  auto textRepository = db::TextRepository{dbHandler.getConnection()};
+
+  db::models::Text text(L"body", 777, utils::Language::English, L"src");
+  textRepository.add(text);
+
+  EXPECT_THROW(textRepository.add(text), sqlite::database_exception);
 }

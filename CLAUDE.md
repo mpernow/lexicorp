@@ -114,8 +114,9 @@ through `word_text` to `text`.
 
 - Do not run `git commit` yourself. Leave staging and committing to the
   repository owner.
-- The repository `I*Repository` interfaces and their implementations have
-  drifted apart in places (differing method signatures); check the concrete
-  class, not just the interface, when calling repository methods.
+- Table-level constraints are smuggled into `schema()` as fake columns, e.g.
+  `{"PRIMARY", "KEY(word, language)"}`. `createTableSql<T>()` just joins
+  `"<first> <second>"` pairs with commas, so this emits a valid
+  `PRIMARY KEY(...)` clause. Brittle, but that's the current mechanism.
 - No committed `.clang-format`; existing code follows LLVM style (2-space
   indent, 80 columns).

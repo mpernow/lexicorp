@@ -1,4 +1,7 @@
 #include "db/Utils.h"
+#include "db/Text.h"
+#include "db/Word.h"
+#include "db/WordText.h"
 #include <gtest/gtest.h>
 #include <string>
 #include <vector>
@@ -45,6 +48,33 @@ TEST(dbUtilsSchemaTests, CreateSqlSchema) {
   EXPECT_EQ(db::Utils::createTableSql<TestDbModel>(),
             "CREATE TABLE IF NOT EXISTS TestTableName(field1 TEXT PRIMARY KEY, "
             "field2 INTEGER, field3 INTEGER);");
+}
+
+// The real models are DB models too, and they smuggle a table-level PRIMARY KEY
+// through schema() as a fake {"PRIMARY", "KEY(...)"} column. Pin the exact SQL
+// so that fragile mechanism cannot silently break.
+TEST(dbUtilsSchemaTests, WordModelSql) {
+  static_assert(db::Utils::IsDbModel<db::models::Word>);
+  EXPECT_EQ(db::Utils::createTableSql<db::models::Word>(),
+            "CREATE TABLE IF NOT EXISTS words(word TEXT NOT NULL, "
+            "numOccurrences INTEGER NOT NULL, known INTEGER NOT NULL, "
+            "language TEXT NOT NULL, PRIMARY KEY(word, language));");
+}
+
+TEST(dbUtilsSchemaTests, TextModelSql) {
+  static_assert(db::Utils::IsDbModel<db::models::Text>);
+  EXPECT_EQ(db::Utils::createTableSql<db::models::Text>(),
+            "CREATE TABLE IF NOT EXISTS text(text TEXT NOT NULL, "
+            "hash INTEGER PRIMARY KEY, language TEXT NOT NULL, "
+            "source TEXT NOT NULL);");
+}
+
+TEST(dbUtilsSchemaTests, WordTextModelSql) {
+  static_assert(db::Utils::IsDbModel<db::models::WordText>);
+  EXPECT_EQ(db::Utils::createTableSql<db::models::WordText>(),
+            "CREATE TABLE IF NOT EXISTS word_text(word TEXT NOT NULL, "
+            "text_hash INTEGER, numOccurrences INTEGER, language TEXT NOT NULL, "
+            "PRIMARY KEY(word, text_hash));");
 }
 
 TEST(dbUtilsTemplateConceptTests, Pass) {

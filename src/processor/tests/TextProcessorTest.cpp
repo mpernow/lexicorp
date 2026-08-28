@@ -1,6 +1,7 @@
 #include "processor/TextProcessor.h"
 #include <gtest/gtest.h>
 #include <string>
+#include <unordered_map>
 
 TEST(TextProcessorTests, ComputeFrequenciesTest) {
   std::wstring text = LR"(
@@ -115,4 +116,71 @@ TEST(TextProcessorTests, HashTestKurdish) {
   uint64_t hash2 = textProcessor.hashWstring(text);
 
   EXPECT_EQ(hash1, hash2);
+}
+
+TEST(TextProcessorTests, ComputeFrequenciesEmptyInput) {
+  processor::TextProcessor tp;
+  EXPECT_TRUE(tp.computeFrequencies(L"").empty());
+}
+
+TEST(TextProcessorTests, ComputeFrequenciesPunctuationOnly) {
+  processor::TextProcessor tp;
+  EXPECT_TRUE(tp.computeFrequencies(L"!!! ??? ... ,,, --- ;;;").empty());
+}
+
+TEST(TextProcessorTests, ComputeFrequenciesCountsDigitTokensAsWords) {
+  processor::TextProcessor tp;
+  auto f = tp.computeFrequencies(L"123 456 123 3rd");
+  EXPECT_EQ(f.at(L"123"), 2);
+  EXPECT_EQ(f.at(L"456"), 1);
+  EXPECT_EQ(f.at(L"3rd"), 1);
+}
+
+TEST(TextProcessorTests, ComputeFrequenciesKeepsInternalApostrophes) {
+  processor::TextProcessor tp;
+  // U+0027 and U+2019 are explicitly excluded from the strip set, so elided /
+  // contracted forms stay as one token.
+  auto f = tp.computeFrequencies(L"don't l'homme it’s");
+  EXPECT_EQ(f.at(L"don't"), 1);
+  EXPECT_EQ(f.at(L"l'homme"), 1);
+  EXPECT_EQ(f.at(L"it’s"), 1);
+}
+
+TEST(TextProcessorTests, ComputeFrequenciesStripsHyphensBeforeSegmenting) {
+  processor::TextProcessor tp;
+  // The strip pass runs before word segmentation, so a hyphenated compound
+  // collapses into a single token rather than splitting.
+  auto f = tp.computeFrequencies(L"well-known state-of-the-art");
+  EXPECT_EQ(f.at(L"wellknown"), 1);
+  EXPECT_EQ(f.at(L"stateoftheart"), 1);
+  EXPECT_FALSE(f.contains(L"well"));
+}
+
+TEST(TextProcessorTests, ComputeFrequenciesNfkcFoldsLigatures) {
+  processor::TextProcessor tp;
+  auto f = tp.computeFrequencies(L"ﬁle office"); // U+FB01 = "ﬁ"
+  EXPECT_EQ(f.at(L"file"), 1);
+  EXPECT_FALSE(f.contains(L"ﬁle"));
+}
+
+TEST(TextProcessorTests, ComputeFrequenciesCaseFoldsEszett) {
+  processor::TextProcessor tp;
+  auto f = tp.computeFrequencies(L"straße GROß"); // ß
+  EXPECT_EQ(f.at(L"strasse"), 1);
+  EXPECT_EQ(f.at(L"gross"), 1);
+}
+
+TEST(TextProcessorTests, HashStableAcrossInstances) {
+  const std::wstring text = L"a stable sentence.";
+  EXPECT_EQ(processor::TextProcessor{}.hashWstring(text),
+            processor::TextProcessor{}.hashWstring(text));
+}
+
+// Golden values: hashWstring is SHA-256 over the UTF-8 encoding with the first
+// 8 bytes reinterpreted as a little-endian uint64. If normalization, the
+// digest, or the byte width changes, these break.
+TEST(TextProcessorTests, HashGoldenValues) {
+  processor::TextProcessor tp;
+  EXPECT_EQ(tp.hashWstring(L""), 1449310910991872227ULL);
+  EXPECT_EQ(tp.hashWstring(L"hello"), 1054880662928880172ULL);
 }
