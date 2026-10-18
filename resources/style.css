@@ -1,7 +1,36 @@
+/* Noto Naskh Arabic for Arabic-script text (Kurdish), served from
+   resources/fonts so it renders the same on every device. unicode-range limits
+   it to Arabic-script characters; Latin text keeps Bootstrap's font stack. The
+   family has its own name so a locally installed Noto Naskh can't interfere. */
+@font-face {
+  font-family: "LexiCorp Naskh";
+  src: url("fonts/NotoNaskhArabic-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+  size-adjust: 120%; /* Naskh looks small next to Latin text */
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-08FF, U+FB50-FDFF,
+    U+FE70-FEFF, U+200C-200F, U+25CC;
+}
+
+@font-face {
+  font-family: "LexiCorp Naskh";
+  src: url("fonts/NotoNaskhArabic-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+  size-adjust: 120%; /* Naskh looks small next to Latin text */
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-08FF, U+FB50-FDFF,
+    U+FE70-FEFF, U+200C-200F, U+25CC;
+}
+
 html,
 body {
   height: auto;
   margin: 0;
+}
+
+/* Form controls inherit this via Bootstrap's reboot. */
+body {
+  font-family: "LexiCorp Naskh", var(--bs-body-font-family);
 }
 
 .main-container {
@@ -51,6 +80,11 @@ body {
   white-space: pre-wrap;
   line-height: 1.6;
   font-size: 15px;
+}
+
+/* Naskh's tall ascenders and deep descenders need more room between lines. */
+.source-text:dir(rtl) {
+  line-height: 2.1;
 }
 
 .highlight-word {

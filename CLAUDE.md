@@ -121,5 +121,10 @@ through `word_text` to `text`.
   `{"PRIMARY", "KEY(word, language)"}`. `createTableSql<T>()` just joins
   `"<first> <second>"` pairs with commas, so this emits a valid
   `PRIMARY KEY(...)` clause. Brittle, but that's the current mechanism.
+- `resources/fonts/` holds Noto Naskh Arabic as woff2 subsets of the Arabic
+  ranges (OFL, see `OFL.txt`), used for Kurdish via `@font-face` +
+  `unicode-range` in `resources/style.css`. To regenerate or widen the subset,
+  run `python3 -m fontTools.subset` on the source TTF with
+  `--layout-features='*' --flavor=woff2` and the same `--unicodes` ranges.
 - No committed `.clang-format`; existing code follows LLVM style (2-space
   indent, 80 columns).
