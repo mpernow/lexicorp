@@ -3,6 +3,8 @@
 #include <Wt/WCheckBox.h>
 #include <Wt/WContainerWidget.h>
 #include <Wt/WLabel.h>
+#include <algorithm>
+#include <unordered_set>
 
 #include "db/Savepoint.h"
 #include "db/WordText.h"
@@ -104,10 +106,20 @@ void InsertTextPage::process() {
       std::make_unique<Wt::WText>("Include?"));
   mWordTable->elementAt(0, 3)->addWidget(std::make_unique<Wt::WText>("Known?"));
 
+  // Words already known for this language start ticked as known. Saving
+  // can't un-know a word (updateFrequencies ORs `known`), so their box is
+  // disabled; the Word List's switch is the place to change it.
+  std::unordered_set<std::wstring> knownWords;
+  for (const auto &word :
+       mAppContext->wordRepository->getAll(mAppContext->selectedLanguage)) {
+    if (word.known)
+      knownWords.insert(word.word);
+  }
+
   mRows.clear();
 
   for (const auto &[word, count] : mWordCounts) {
-    mRows.emplace_back(word, count, true, false);
+    mRows.emplace_back(word, count, true, knownWords.contains(word));
   }
   std::sort(mRows.begin(), mRows.end(), [](const RowData &a, const RowData &b) {
     return a.count > b.count;
@@ -133,6 +145,11 @@ void InsertTextPage::process() {
     auto knownCheckbox = mWordTable->elementAt(row, 3)->addWidget(
         std::make_unique<Wt::WCheckBox>());
     knownCheckbox->setChecked(mRows.at(row - 1).known);
+    if (rowData.known) {
+      knownCheckbox->disable();
+      knownCheckbox->setToolTip(
+          "Already known. Change it in the Word List.");
+    }
     knownCheckbox->changed().connect([this, row, knownCheckbox] {
       mRows.at(row - 1).known = knownCheckbox->isChecked();
     });

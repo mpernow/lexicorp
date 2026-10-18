@@ -455,6 +455,43 @@ TEST_F(PagesTest, SubmittingClearsInsertPage) {
   EXPECT_EQ(texts.getAll(utils::Language::English).size(), 1u);
 }
 
+TEST_F(PagesTest, ProcessPrefillsAndLocksAlreadyKnownWords) {
+  {
+    db::DatabaseHandler dbHandler;
+    db::WordRepository words{dbHandler.getConnection()};
+    words.add(db::models::Word{L"cat", 1, true, utils::Language::English});
+    words.add(db::models::Word{L"dog", 1, false, utils::Language::English});
+    // Known in another language only: must not count.
+    words.add(db::models::Word{L"the", 1, true, utils::Language::French});
+  }
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/insert", true);
+  auto *page = findOne<InsertTextPage>(app.root());
+  ASSERT_NE(page, nullptr);
+  findAll<Wt::WTextArea>(page)[0]->setText("the cat dog");
+  findButton(page, "Process")->clicked().emit(Wt::WMouseEvent());
+
+  // Row cells: word, count, include, known.
+  auto *table = findOne<Wt::WTable>(page);
+  auto knownBox = [table](const std::string &word) -> Wt::WCheckBox * {
+    for (int row = 1; row < table->rowCount(); ++row)
+      if (containsText(table->elementAt(row, 0), word))
+        return findOne<Wt::WCheckBox>(table->elementAt(row, 3));
+    return nullptr;
+  };
+  for (const char *word : {"the", "cat", "dog"})
+    ASSERT_NE(knownBox(word), nullptr) << word;
+
+  EXPECT_TRUE(knownBox("cat")->isChecked());
+  EXPECT_FALSE(knownBox("cat")->isEnabled());
+  EXPECT_FALSE(knownBox("dog")->isChecked());
+  EXPECT_TRUE(knownBox("dog")->isEnabled());
+  EXPECT_FALSE(knownBox("the")->isChecked());
+  EXPECT_TRUE(knownBox("the")->isEnabled());
+}
+
 TEST_F(PagesTest, SidebarViewSourceListsAllSourcesWithoutHighlight) {
   addText(L"cat sat here", 1, L"first-source", utils::Language::English);
   addText(L"dog ran there", 2, L"", utils::Language::English);
