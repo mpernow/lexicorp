@@ -18,6 +18,10 @@ find_package(Threads REQUIRED)
 
 set(VSQLITEPP_VERSION 0.4.0)
 
+# Link our libraries and vsqlite++ statically so the LexiCorp binary can be
+# copied elsewhere.
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+
 # Enable testing and download gtest
 enable_testing()
 
