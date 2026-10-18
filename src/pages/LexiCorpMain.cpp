@@ -10,6 +10,8 @@
 #include <Wt/WHBoxLayout.h>
 #include <Wt/WMenu.h>
 #include <Wt/WStackedWidget.h>
+#include <Wt/Http/Cookie.h>
+#include <chrono>
 #include <memory>
 
 LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
@@ -24,6 +26,13 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   useStyleSheet("resources/style.css");
 
   mAppContext = std::make_shared<AppContext>();
+
+  // Restore the language chosen in a previous session, if any.
+  if (const std::string *cookie = env.getCookie(languageCookieName)) {
+    utils::Language language = utils::language_from_string(*cookie);
+    if (language != utils::Language::Unknown)
+      mAppContext->selectedLanguage = language;
+  }
 
   auto mainLayout = root()->setLayout(std::make_unique<Wt::WHBoxLayout>());
 
@@ -41,6 +50,8 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   for (utils::Language language : languages) {
     languageCombo->addItem(utils::to_string(language));
   }
+  languageCombo->setCurrentIndex(
+      languageCombo->findText(utils::to_string(mAppContext->selectedLanguage)));
   languageCombo->changed().connect([this] {
     std::string selected = mLanguageCombo->currentText().toUTF8();
 
@@ -48,6 +59,11 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
     mAppContext->languageChanged.emit(selected);
   });
   mAppContext->languageChanged.connect([this](const std::string &lang) {
+    Wt::Http::Cookie cookie{languageCookieName, lang,
+                            std::chrono::days{365}};
+    cookie.setPath("/");
+    setCookie(cookie);
+
     for (int i = 0; i < mLanguageCombo->count(); ++i) {
       if (mLanguageCombo->itemText(i).toUTF8() == lang) {
         mLanguageCombo->setCurrentIndex(i);

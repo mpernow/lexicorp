@@ -20,6 +20,11 @@ LanguageSelectionPage::LanguageSelectionPage(
   for (utils::Language language : languages) {
     combo->addItem(utils::to_string(language));
   }
+  combo->setCurrentIndex(
+      combo->findText(utils::to_string(mAppContext->selectedLanguage)));
+  mAppContext->languageChanged.connect([combo](const std::string &lang) {
+    combo->setCurrentIndex(combo->findText(lang));
+  });
 
   Wt::WPushButton *button = container->addNew<Wt::WPushButton>("Submit");
   button->setStyleClass("button");

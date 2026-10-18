@@ -93,6 +93,12 @@ void InsertTextPage::process() {
 }
 
 void InsertTextPage::submit() {
+  if (mAppContext->textRepository->getByHash(static_cast<int>(mHash))) {
+    mResultsText->setText("This text has already been added.");
+    return;
+  }
+  mResultsText->setText("");
+
   std::vector<db::models::Word> wordsToSave;
   for (const RowData row : mRows) {
     if (row.include) {

@@ -20,7 +20,8 @@ public:
         std::make_shared<db::WordTextRepository>(dbHandler->getConnection());
   }
 
-  utils::Language selectedLanguage;
+  // Matches the first entry of the sidebar language combo box.
+  utils::Language selectedLanguage = utils::Language::English;
   Wt::Signal<std::string> languageChanged;
   Wt::Signal<> wordSelected;
   std::wstring selectedWord;

@@ -12,3 +12,18 @@ target_include_directories(pages
 )
 
 target_link_libraries(pages PUBLIC db processor utils)
+
+# Add test executable
+add_executable(pages_test
+    tests/PagesTest.cpp
+)
+target_link_libraries(pages_test
+    gtest_main
+    pages
+    Wt::Wt
+    Wt::Test
+)
+
+# Register tests
+include(GoogleTest)
+gtest_discover_tests(pages_test)

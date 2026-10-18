@@ -10,6 +10,11 @@ DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
     : mAppContext(appContext) {
 
   mAppContext->languageChanged.connect(this, &DisplayWordsPage::loadData);
+  Wt::WApplication::instance()->internalPathChanged().connect(
+      [this](const std::string &path) {
+        if (path == "/list")
+          loadData();
+      });
 
   auto container = addWidget(std::make_unique<Wt::WContainerWidget>());
   container->setStyleClass("main-container");

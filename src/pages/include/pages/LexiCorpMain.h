@@ -16,6 +16,7 @@ private:
   void handlePath(const std::string &path);
   std::shared_ptr<AppContext> mAppContext;
   Wt::WComboBox *mLanguageCombo;
+  static constexpr const char *languageCookieName = "language";
   static constexpr std::array<utils::Language, 3> languages{
       utils::Language::English, utils::Language::French,
       utils::Language::Kurdish};
