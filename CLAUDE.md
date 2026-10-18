@@ -25,7 +25,10 @@ cmake --build build/debug --target run     # debug -> http://localhost:9090
 cmake --build build/release --target run   # release -> http://localhost:8080
 ```
 
-The `run` target passes `--docroot <project root>` and
+The `run` target passes `--docroot "<project root>;/resources"` (the
+`;/resources` limits static serving to that folder, so all other URLs go to the
+app: clean internal paths like `/list` instead of `/?_=/list`, and files such as
+`lexiCorp.db` aren't downloadable) and
 `--resources-dir <Wt's installed resources/>` (found at configure time as
 `WT_RESOURCES_DIR`; without it the Bootstrap 5 theme CSS 404s), and copies
 `resources/` next to the binary as a post-build step. At runtime the app opens/creates

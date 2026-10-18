@@ -11,10 +11,10 @@ From the project root, run `cmake --preset <preset>` and `cmake --build --preset
 The easiest way to run it is with `cmake --build build/debug --target run` or `cmake --build build/release --target run`.
 Then open a browser and navigate to the page. For a debug build, it is located at `http://localhost:9090` and for release it is `http://localhost:8080`.
 
-To run the binary directly, pass the document root (the folder containing `resources/`) and Wt's own resources directory (usually `/usr/local/share/Wt/resources` when Wt is built from source):
+To run the binary directly, pass the document root (the folder containing `resources/`) and Wt's own resources directory (usually `/usr/local/share/Wt/resources` when Wt is built from source). The `;/resources` after the document root means only that folder is served as static files; everything else is handled by the app, which gives clean URLs like `/list` and keeps other files in the document root (such as the database) from being downloadable:
 
 ```
-./build/release/src/LexiCorp --docroot . --resources-dir /usr/local/share/Wt/resources \
+./build/release/src/LexiCorp --docroot ".;/resources" --resources-dir /usr/local/share/Wt/resources \
     --http-address 0.0.0.0 --http-port 8080
 ```
 
@@ -60,7 +60,7 @@ Wants=network-online.target
 [Service]
 User=lexicorp
 WorkingDirectory=/var/lib/lexicorp
-ExecStart=/opt/lexicorp/LexiCorp --docroot /opt/lexicorp \
+ExecStart=/opt/lexicorp/LexiCorp --docroot "/opt/lexicorp;/resources" \
   --resources-dir /usr/local/share/Wt/resources \
   --http-address 127.0.0.1 --http-port 8080
 Restart=on-failure

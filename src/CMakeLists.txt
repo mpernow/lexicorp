@@ -51,9 +51,12 @@ if(NOT WT_RESOURCES_DIR)
                     "Set WT_RESOURCES_DIR to <wt-prefix>/share/Wt/resources.")
 endif()
 
+# Only /resources is served as static files: everything else goes to the app,
+# so Wt can use clean URLs (/list instead of /?_=/list) and the rest of the
+# docroot (lexiCorp.db, sources) is not downloadable.
 add_custom_target(run
     COMMAND $<TARGET_FILE:LexiCorp>
-            --docroot ${PROJECT_SOURCE_DIR}
+            --docroot "${PROJECT_SOURCE_DIR}$<SEMICOLON>/resources"
             --resources-dir ${WT_RESOURCES_DIR}
             --http-address 0.0.0.0
             --http-port ${RUN_PORT}
