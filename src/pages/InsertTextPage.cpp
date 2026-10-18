@@ -124,7 +124,12 @@ void InsertTextPage::process() {
   }
 
   mHash = mTextProcessor->hashWstring(mText);
-  mSubmitButton->show();
+
+  bool noWords = mRows.empty();
+  mWordTable->setHidden(noWords);
+  mSubmitButton->setHidden(noWords);
+  mResultsText->setText(noWords ? "No words found in this text." : "");
+  mResultsText->setStyleClass(noWords ? "alert alert-info mt-3" : "");
 }
 
 void InsertTextPage::submit() {

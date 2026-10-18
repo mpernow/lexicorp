@@ -1,6 +1,6 @@
 add_library(pages
     InsertTextPage.cpp
-    LanguageSelectionPage.cpp
+    HomePage.cpp
     LexiCorpMain.cpp
     DisplayWordsPage.cpp
     ViewSourcePage.cpp

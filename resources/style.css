@@ -7,25 +7,10 @@ body {
 .main-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh; /* full viewport height */
-  width: 100%; /* full width */
+  width: 100%;
+  max-width: 900px; /* readable column, centred in the content area */
+  margin: 0 auto;
   padding: 2rem;
-}
-
-.default-text {
-  text-align: center;
-  font-size: 28px;
-  color: #3366cc;
-  font-weight: bold;
-}
-
-.center-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center; /* vertical */
-  align-items: center; /* horizontal */
-  height: 100vh;
-  gap: 10px;
 }
 
 .table-container {
@@ -42,10 +27,6 @@ body {
   text-decoration: underline;
 }
 
-.sidebar {
-  min-height: 100vh;
-}
-
 /* Text areas that grow with their content (see InsertTextPage autoGrow). */
 .auto-grow {
   resize: none;
@@ -60,28 +41,10 @@ body {
   z-index: 1;
 }
 
-.source-block {
-  background: #fafafa;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.source-heading {
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 15px;
-}
-
-.source-label {
-  color: #666;
-  font-size: 13px;
-  font-style: italic;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #eee;
+.stat-value {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .source-text {
@@ -91,9 +54,9 @@ body {
 }
 
 .highlight-word {
-  color: #3366cc;
+  color: var(--bs-primary-text-emphasis);
   font-weight: bold;
-  background: rgba(51, 102, 204, 0.12);
+  background: var(--bs-primary-bg-subtle);
   border-radius: 3px;
   padding: 0 2px;
 }

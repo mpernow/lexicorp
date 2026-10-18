@@ -1,7 +1,7 @@
 #include "pages/LexiCorpMain.h"
 #include "pages/DisplayWordsPage.h"
 #include "pages/InsertTextPage.h"
-#include "pages/LanguageSelectionPage.h"
+#include "pages/HomePage.h"
 #include "pages/ViewSourcePage.h"
 
 #include <Wt/WApplication.h>
@@ -10,6 +10,7 @@
 #include <Wt/WHBoxLayout.h>
 #include <Wt/WLabel.h>
 #include <Wt/WMenu.h>
+#include <Wt/WMenuItem.h>
 #include <Wt/WStackedWidget.h>
 #include <Wt/Http/Cookie.h>
 #include <chrono>
@@ -34,10 +35,13 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   }
 
   auto mainLayout = root()->setLayout(std::make_unique<Wt::WHBoxLayout>());
+  mainLayout->setContentsMargins(0, 0, 0, 0);
+  mainLayout->setSpacing(0);
 
   // --- Sidebar container ---
   auto sidebar = std::make_unique<Wt::WContainerWidget>();
-  sidebar->setStyleClass("sidebar bg-body-tertiary border-end p-3");
+  sidebar->setStyleClass(
+      "sidebar bg-body-tertiary border-end p-3 d-flex flex-column");
   sidebar->setWidth(250);
 
   auto brand = sidebar->addNew<Wt::WText>("LexiCorp");
@@ -90,8 +94,7 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   menu->setInternalPathEnabled();
 
   // --- Menu items with URL paths ---
-  menu->addItem("Language",
-                std::make_unique<LanguageSelectionPage>(mAppContext))
+  menu->addItem("Home", std::make_unique<HomePage>(mAppContext))
       ->setPathComponent("");
   menu->addItem("Insert Text", std::make_unique<InsertTextPage>(mAppContext))
       ->setPathComponent("insert");
@@ -100,8 +103,41 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   menu->addItem("View source", std::make_unique<ViewSourcePage>(mAppContext))
       ->setPathComponent("source");
 
+  // Wt doesn't mark the item that is selected when the page is first rendered
+  // as active, so keep the Bootstrap "active" class in sync ourselves.
+  Wt::WMenu *menuPtr = menu.get();
+  auto markActive = [menuPtr] {
+    for (int i = 0; i < menuPtr->count(); ++i)
+      menuPtr->itemAt(i)->anchor()->toggleStyleClass(
+          "active", i == menuPtr->currentIndex());
+  };
+  menu->itemSelected().connect(markActive);
+
   // --- Add menu to sidebar ---
   sidebar->addWidget(std::move(menu));
+
+  // --- Dark mode switch, pinned to the bottom of the sidebar ---
+  mDarkModeSwitch = sidebar->addNew<Wt::WCheckBox>("Dark mode");
+  mDarkModeSwitch->addStyleClass("form-switch mt-auto pt-3");
+  mDarkModeSwitch->changed().connect([this] {
+    bool dark = mDarkModeSwitch->isChecked();
+    applyTheme(dark);
+
+    Wt::Http::Cookie cookie{themeCookieName, dark ? "dark" : "light",
+                            std::chrono::days{365}};
+    cookie.setPath("/");
+    setCookie(cookie);
+  });
+
+  const std::string *themeCookie = env.getCookie(themeCookieName);
+  if (themeCookie && (*themeCookie == "dark" || *themeCookie == "light")) {
+    applyTheme(*themeCookie == "dark");
+  } else {
+    applyTheme(false);
+    mSystemPrefersDark.connect([this](bool dark) { applyTheme(dark); });
+    doJavaScript(mSystemPrefersDark.createCall(
+        {"window.matchMedia('(prefers-color-scheme: dark)').matches"}));
+  }
 
   // --- Add to layout ---
   mainLayout->insertWidget(0, std::move(sidebar));
@@ -110,4 +146,10 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   if (internalPath().empty() || internalPath() == "/") {
     setInternalPath("/", true);
   }
+  markActive();
+}
+
+void LexiCorpMain::applyTheme(bool dark) {
+  setHtmlAttribute("data-bs-theme", dark ? "dark" : "light");
+  mDarkModeSwitch->setChecked(dark);
 }

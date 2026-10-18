@@ -79,9 +79,10 @@ headers in `src/<lib>/include/<lib>/`.
 - **pages** — one `Wt::WContainerWidget` subclass per screen.
   `LexiCorpMain` (`Wt::WApplication`) builds the shell: a sidebar with a
   language `WComboBox` and a `WMenu` bound to a `WStackedWidget`, using
-  internal-path routing. Routes: `""` → `LanguageSelectionPage`,
-  `/insert` → `InsertTextPage`, `/list` → `DisplayWordsPage`,
-  `/source` → `ViewSourcePage`.
+  internal-path routing. Routes: `""` → `HomePage` (stats overview),
+  `/insert` → `InsertTextPage`, `/list` → `DisplayWordsPage`, `/source` →
+  `ViewSourcePage` (all texts) and `/source/word` (texts containing
+  `selectedWord`, highlighted).
 
 ### Cross-cutting conventions
 

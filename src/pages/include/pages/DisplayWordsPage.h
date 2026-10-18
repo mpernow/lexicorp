@@ -5,7 +5,6 @@
 #include <Wt/WPushButton.h>
 #include <Wt/WTable.h>
 #include <Wt/WText.h>
-#include <Wt/WTextArea.h>
 
 class DisplayWordsPage : public Wt::WContainerWidget {
 public:
@@ -24,9 +23,9 @@ private:
   void sortRows();
   void rebuildRows();
 
-  Wt::WTextArea *textEdit_;
-  Wt::WText *mResultsText;
+  Wt::WPushButton *mToggleButton;
   Wt::WTable *mWordTable;
+  Wt::WContainerWidget *mEmptyState;
   std::shared_ptr<AppContext> mAppContext;
   std::vector<RowData> mRows;
   std::vector<RowData> mFilteredRows;

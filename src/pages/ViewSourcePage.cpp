@@ -1,4 +1,5 @@
 #include "pages/ViewSourcePage.h"
+#include "pages/EmptyState.h"
 #include "db/Text.h"
 #include "db/Utils.h"
 #include "db/WordText.h"
@@ -18,7 +19,7 @@ ViewSourcePage::ViewSourcePage(std::shared_ptr<AppContext> appContext)
 
   mHeading = container->addNew<Wt::WText>();
   mHeading->setInline(false);
-  mHeading->setStyleClass("source-heading");
+  mHeading->setStyleClass("h5 mb-3");
 
   mTextsContainer =
       container->addWidget(std::make_unique<Wt::WContainerWidget>());
@@ -136,6 +137,11 @@ void ViewSourcePage::showWordSources() {
                                           "\""));
   mHeading->setTextFormat(Wt::TextFormat::Plain);
 
+  if (wordTextVec.empty()) {
+    mTextsContainer->addWidget(makeEmptyState(
+        "No stored text contains \"" + utf8Word + "\".", false));
+  }
+
   for (const db::models::WordText &wt : wordTextVec) {
     // TODO: Handle case of std::optional being nullopt - it is an error
     if (auto text = mAppContext->textRepository->getByHash(wt.textHash)) {
@@ -152,6 +158,13 @@ void ViewSourcePage::showAllSources() {
   mHeading->setText("All sources (" + std::to_string(texts.size()) + ")");
   mHeading->setTextFormat(Wt::TextFormat::Plain);
 
+  if (texts.empty()) {
+    mTextsContainer->addWidget(makeEmptyState(
+        "No " + utils::to_string(mAppContext->selectedLanguage) +
+            " texts yet. Inserted texts and their sources will appear here.",
+        true));
+  }
+
   for (const db::models::Text &text : texts) {
     addSourceBlock(text, htmlEscape(db::Utils::toUtf8(text.text)));
   }
@@ -160,7 +173,7 @@ void ViewSourcePage::showAllSources() {
 void ViewSourcePage::addSourceBlock(const db::models::Text &text,
                                     const std::string &textHtml) {
   auto textBlock = mTextsContainer->addNew<Wt::WContainerWidget>();
-  textBlock->setStyleClass("source-block");
+  textBlock->setStyleClass("card mb-3");
 
   std::string source =
       text.source.empty() ? "(no source)" : db::Utils::toUtf8(text.source);
@@ -168,11 +181,11 @@ void ViewSourcePage::addSourceBlock(const db::models::Text &text,
       Wt::WString::fromUTF8("Source: " + source), Wt::TextFormat::Plain);
   sourceWidget->setInline(false);
   sourceWidget->setAttributeValue("dir", "auto");
-  sourceWidget->setStyleClass("source-label");
+  sourceWidget->setStyleClass("card-header small text-body-secondary");
 
   auto textWidget = textBlock->addNew<Wt::WText>(
       Wt::WString::fromUTF8(textHtml), Wt::TextFormat::XHTML);
   textWidget->setInline(false);
-  textWidget->setStyleClass("source-text");
+  textWidget->setStyleClass("card-body source-text");
   textWidget->setAttributeValue("dir", "auto");
 }

@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include "pages/DisplayWordsPage.h"
+#include "pages/EmptyState.h"
 
 DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
     : mAppContext(appContext) {
@@ -19,13 +20,14 @@ DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
   auto container = addWidget(std::make_unique<Wt::WContainerWidget>());
   container->setStyleClass("main-container");
 
-  auto toggleBtn = container->addNew<Wt::WPushButton>("Show Unknown Only");
-  toggleBtn->setStyleClass("btn-outline-secondary align-self-start mb-3");
+  mToggleButton = container->addNew<Wt::WPushButton>("Show Unknown Only");
+  mToggleButton->setStyleClass("btn-outline-secondary align-self-start mb-3");
 
-  toggleBtn->clicked().connect([=] {
+  mToggleButton->clicked().connect([this] {
     mShowUnknownOnly = !mShowUnknownOnly;
 
-    toggleBtn->setText(mShowUnknownOnly ? "Show All" : "Show Unknown Only");
+    mToggleButton->setText(mShowUnknownOnly ? "Show All"
+                                            : "Show Unknown Only");
 
     rebuildRows();
   });
@@ -33,6 +35,8 @@ DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
   mWordTable = container->addNew<Wt::WTable>();
   mWordTable->setStyleClass("table table-hover align-middle word-table");
   mWordTable->setHeaderCount(1);
+
+  mEmptyState = container->addNew<Wt::WContainerWidget>();
 
   loadData();
 }
@@ -67,6 +71,22 @@ void DisplayWordsPage::rebuildRows() {
 
 void DisplayWordsPage::buildTable() {
   mWordTable->clear();
+  mEmptyState->clear();
+
+  mToggleButton->setHidden(mRows.empty());
+  mWordTable->setHidden(mFilteredRows.empty());
+  if (mRows.empty()) {
+    mEmptyState->addWidget(makeEmptyState(
+        "No " + utils::to_string(mAppContext->selectedLanguage) +
+            " words yet. Insert a text to start building your word list.",
+        true));
+    return;
+  }
+  if (mFilteredRows.empty()) {
+    mEmptyState->addWidget(
+        makeEmptyState("No unknown words left — you know them all!", false));
+    return;
+  }
 
   mWordTable->elementAt(0, 0)->addWidget(std::make_unique<Wt::WText>("Word"));
 

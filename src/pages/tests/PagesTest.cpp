@@ -5,13 +5,16 @@
 #include "pages/AppContext.h"
 #include "pages/DisplayWordsPage.h"
 #include "pages/InsertTextPage.h"
-#include "pages/LanguageSelectionPage.h"
+#include "pages/HomePage.h"
 #include "pages/LexiCorpMain.h"
 #include "pages/ViewSourcePage.h"
 
 #include <Wt/Test/WTestEnvironment.h>
+#include <Wt/WCheckBox.h>
 #include <Wt/WComboBox.h>
 #include <Wt/WEvent.h>
+#include <Wt/WMenu.h>
+#include <Wt/WMenuItem.h>
 #include <Wt/WPushButton.h>
 #include <Wt/WText.h>
 #include <Wt/WTextArea.h>
@@ -66,16 +69,25 @@ Wt::WPushButton *findButton(Wt::WWidget *root, const std::string &label) {
   return nullptr;
 }
 
-// The sidebar combo box is the one that is not part of LanguageSelectionPage.
+// The sidebar holds the only language combo box.
 Wt::WComboBox *findSidebarCombo(Wt::WApplication &app) {
-  for (auto *combo : findAll<Wt::WComboBox>(app.root())) {
-    Wt::WWidget *ancestor = combo->parent();
-    while (ancestor && !dynamic_cast<LanguageSelectionPage *>(ancestor))
-      ancestor = ancestor->parent();
-    if (!ancestor)
-      return combo;
-  }
-  return nullptr;
+  return findOne<Wt::WComboBox>(app.root());
+}
+
+// The Home page's stat tiles, in order: words, known, texts.
+std::vector<std::string> statValues(Wt::WWidget *root) {
+  std::vector<std::string> values;
+  for (auto *text : findAll<Wt::WText>(root))
+    if (text->hasStyleClass("stat-value"))
+      values.push_back(text->text().toUTF8());
+  return values;
+}
+
+void selectLanguage(Wt::WApplication &app, const std::string &language) {
+  auto *combo = findSidebarCombo(app);
+  ASSERT_NE(combo, nullptr);
+  combo->setCurrentIndex(combo->findText(language));
+  combo->changed().emit();
 }
 
 } // namespace
@@ -144,10 +156,9 @@ TEST_F(PagesTest, LanguageCookieIsRestored) {
   env.setCookies({{"language", "Kurdish"}});
   LexiCorpMain app{env};
 
-  auto combos = findAll<Wt::WComboBox>(app.root());
-  ASSERT_EQ(combos.size(), 2u);
-  for (auto *combo : combos)
-    EXPECT_EQ(combo->currentText().toUTF8(), "Kurdish");
+  auto *combo = findSidebarCombo(app);
+  ASSERT_NE(combo, nullptr);
+  EXPECT_EQ(combo->currentText().toUTF8(), "Kurdish");
 }
 
 TEST_F(PagesTest, InvalidLanguageCookieFallsBackToEnglish) {
@@ -174,20 +185,163 @@ TEST_F(PagesTest, RestoredLanguageIsUsedForWordList) {
   EXPECT_FALSE(containsText(page, "englishword"));
 }
 
-TEST_F(PagesTest, SidebarChangeUpdatesLanguagePageCombo) {
+Wt::WCheckBox *findDarkModeSwitch(Wt::WApplication &app) {
+  for (auto *checkBox : findAll<Wt::WCheckBox>(app.root()))
+    if (checkBox->text().toUTF8() == "Dark mode")
+      return checkBox;
+  return nullptr;
+}
+
+TEST_F(PagesTest, NoThemeCookieStartsLight) {
+  // The browser then reports prefers-color-scheme, which is JavaScript only.
   Wt::Test::WTestEnvironment env;
   LexiCorpMain app{env};
 
-  auto *sidebarCombo = findSidebarCombo(app);
-  ASSERT_NE(sidebarCombo, nullptr);
-  sidebarCombo->setCurrentIndex(sidebarCombo->findText("French"));
-  sidebarCombo->changed().emit();
+  EXPECT_EQ(app.htmlAttribute("data-bs-theme").toUTF8(), "light");
+  auto *darkSwitch = findDarkModeSwitch(app);
+  ASSERT_NE(darkSwitch, nullptr);
+  EXPECT_FALSE(darkSwitch->isChecked());
+}
 
-  auto *page = findOne<LanguageSelectionPage>(app.root());
+TEST_F(PagesTest, DarkThemeCookieIsRestored) {
+  Wt::Test::WTestEnvironment env;
+  env.setCookies({{"theme", "dark"}});
+  LexiCorpMain app{env};
+
+  EXPECT_EQ(app.htmlAttribute("data-bs-theme").toUTF8(), "dark");
+  auto *darkSwitch = findDarkModeSwitch(app);
+  ASSERT_NE(darkSwitch, nullptr);
+  EXPECT_TRUE(darkSwitch->isChecked());
+}
+
+TEST_F(PagesTest, InvalidThemeCookieStartsLight) {
+  Wt::Test::WTestEnvironment env;
+  env.setCookies({{"theme", "purple"}});
+  LexiCorpMain app{env};
+
+  EXPECT_EQ(app.htmlAttribute("data-bs-theme").toUTF8(), "light");
+}
+
+TEST_F(PagesTest, DarkModeSwitchTogglesTheme) {
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  auto *darkSwitch = findDarkModeSwitch(app);
+  ASSERT_NE(darkSwitch, nullptr);
+
+  darkSwitch->setChecked(true);
+  darkSwitch->changed().emit();
+  EXPECT_EQ(app.htmlAttribute("data-bs-theme").toUTF8(), "dark");
+
+  darkSwitch->setChecked(false);
+  darkSwitch->changed().emit();
+  EXPECT_EQ(app.htmlAttribute("data-bs-theme").toUTF8(), "light");
+}
+
+TEST_F(PagesTest, OnlyCurrentMenuItemIsMarkedActive) {
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  auto *menu = findOne<Wt::WMenu>(app.root());
+  ASSERT_NE(menu, nullptr);
+
+  auto activeItems = [menu] {
+    std::vector<std::string> active;
+    for (int i = 0; i < menu->count(); ++i)
+      if (menu->itemAt(i)->anchor()->hasStyleClass("active"))
+        active.push_back(menu->itemAt(i)->text().toUTF8());
+    return active;
+  };
+
+  EXPECT_EQ(activeItems(), std::vector<std::string>{"Home"});
+  app.setInternalPath("/list", true);
+  EXPECT_EQ(activeItems(), std::vector<std::string>{"Word List"});
+  app.setInternalPath("/", true);
+  EXPECT_EQ(activeItems(), std::vector<std::string>{"Home"});
+}
+
+TEST_F(PagesTest, HomeShowsCorpusStatsForSelectedLanguage) {
+  addWord(L"cat", utils::Language::English);
+  addWord(L"dog", utils::Language::English);
+  addText(L"cat and dog", 1, L"src", utils::Language::English);
+  addWord(L"chat", utils::Language::French);
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+
+  auto *home = findOne<HomePage>(app.root());
+  ASSERT_NE(home, nullptr);
+  EXPECT_EQ(statValues(home), (std::vector<std::string>{"2", "0", "1"}));
+
+  selectLanguage(app, "French");
+  EXPECT_EQ(statValues(home), (std::vector<std::string>{"1", "0", "0"}));
+}
+
+TEST_F(PagesTest, HomeRefreshesWhenNavigatedTo) {
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  auto *home = findOne<HomePage>(app.root());
+  ASSERT_NE(home, nullptr);
+  EXPECT_EQ(statValues(home), (std::vector<std::string>{"0", "0", "0"}));
+
+  app.setInternalPath("/list", true);
+  addWord(L"cat", utils::Language::English);
+  app.setInternalPath("/", true);
+  EXPECT_EQ(statValues(home), (std::vector<std::string>{"1", "0", "0"}));
+}
+
+TEST_F(PagesTest, WordListShowsEmptyStateWithoutWords) {
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/list", true);
+
+  auto *page = findOne<DisplayWordsPage>(app.root());
   ASSERT_NE(page, nullptr);
-  auto *pageCombo = findOne<Wt::WComboBox>(page);
-  ASSERT_NE(pageCombo, nullptr);
-  EXPECT_EQ(pageCombo->currentText().toUTF8(), "French");
+  EXPECT_TRUE(anyTextContains(page, "No English words yet."));
+  EXPECT_TRUE(findOne<Wt::WTable>(page)->isHidden());
+  EXPECT_TRUE(findButton(page, "Show Unknown Only")->isHidden());
+}
+
+TEST_F(PagesTest, WordListShowsEmptyStateWhenAllWordsKnown) {
+  {
+    db::DatabaseHandler dbHandler;
+    db::WordRepository words{dbHandler.getConnection()};
+    words.add(db::models::Word{L"cat", 1, true, utils::Language::English});
+  }
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/list", true);
+
+  auto *page = findOne<DisplayWordsPage>(app.root());
+  ASSERT_NE(page, nullptr);
+  EXPECT_TRUE(containsText(page, "cat"));
+
+  findButton(page, "Show Unknown Only")->clicked().emit(Wt::WMouseEvent());
+  EXPECT_TRUE(anyTextContains(page, "you know them all"));
+  EXPECT_TRUE(findOne<Wt::WTable>(page)->isHidden());
+}
+
+TEST_F(PagesTest, ViewSourceShowsEmptyStateWithoutTexts) {
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/source", true);
+
+  auto *page = viewSourcePage(app);
+  ASSERT_NE(page, nullptr);
+  EXPECT_TRUE(anyTextContains(page, "No English texts yet."));
+}
+
+TEST_F(PagesTest, ProcessingTextWithoutWordsHidesSubmit) {
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/insert", true);
+
+  auto *page = findOne<InsertTextPage>(app.root());
+  ASSERT_NE(page, nullptr);
+  findAll<Wt::WTextArea>(page)[0]->setText("!!! ... ???");
+  findButton(page, "Process")->clicked().emit(Wt::WMouseEvent());
+
+  EXPECT_TRUE(containsText(page, "No words found in this text."));
+  EXPECT_TRUE(findButton(page, "Submit")->isHidden());
 }
 
 TEST_F(PagesTest, WordListReloadsWhenNavigatedTo) {
