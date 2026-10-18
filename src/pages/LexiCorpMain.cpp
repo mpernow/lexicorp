@@ -5,9 +5,10 @@
 #include "pages/ViewSourcePage.h"
 
 #include <Wt/WApplication.h>
-#include <Wt/WBootstrapTheme.h>
+#include <Wt/WBootstrap5Theme.h>
 #include <Wt/WContainerWidget.h>
 #include <Wt/WHBoxLayout.h>
+#include <Wt/WLabel.h>
 #include <Wt/WMenu.h>
 #include <Wt/WStackedWidget.h>
 #include <Wt/Http/Cookie.h>
@@ -19,9 +20,7 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
 
   setTitle("LexiCorp");
 
-  auto theme = std::make_shared<Wt::WBootstrapTheme>();
-  theme->setVersion(Wt::BootstrapVersion::v2);
-  setTheme(theme);
+  setTheme(std::make_shared<Wt::WBootstrap5Theme>());
 
   useStyleSheet("resources/style.css");
 
@@ -38,13 +37,19 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
 
   // --- Sidebar container ---
   auto sidebar = std::make_unique<Wt::WContainerWidget>();
-  sidebar->setStyleClass("sidebar bg-light p-3");
+  sidebar->setStyleClass("sidebar bg-body-tertiary border-end p-3");
   sidebar->setWidth(250);
 
-  sidebar->addWidget(std::make_unique<Wt::WText>("Language"));
+  auto brand = sidebar->addNew<Wt::WText>("LexiCorp");
+  brand->setStyleClass("sidebar-brand fs-4 fw-semibold mb-4");
+  brand->setInline(false);
+
+  auto languageLabel = sidebar->addNew<Wt::WLabel>("Language");
+  languageLabel->setStyleClass("form-label small text-body-secondary");
 
   auto languageCombo = sidebar->addWidget(std::make_unique<Wt::WComboBox>());
-  languageCombo->setStyleClass("form-select mb-3");
+  languageCombo->setStyleClass("form-select mb-4");
+  languageLabel->setBuddy(languageCombo);
   mLanguageCombo = languageCombo;
 
   for (utils::Language language : languages) {
@@ -79,7 +84,7 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   auto stack = content->addWidget(std::make_unique<Wt::WStackedWidget>());
 
   auto menu = std::make_unique<Wt::WMenu>(stack);
-  menu->setStyleClass("nav flex-column nav-stacked");
+  menu->setStyleClass("nav nav-pills flex-column gap-1");
 
   // Enable URL routing
   menu->setInternalPathEnabled();
@@ -99,7 +104,7 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   sidebar->addWidget(std::move(menu));
 
   // --- Add to layout ---
-  mainLayout->addWidget(std::move(sidebar));
+  mainLayout->insertWidget(0, std::move(sidebar));
 
   // Default route
   if (internalPath().empty() || internalPath() == "/") {

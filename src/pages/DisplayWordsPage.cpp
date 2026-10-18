@@ -19,9 +19,8 @@ DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
   auto container = addWidget(std::make_unique<Wt::WContainerWidget>());
   container->setStyleClass("main-container");
 
-  container->addNew<Wt::WBreak>();
-
   auto toggleBtn = container->addNew<Wt::WPushButton>("Show Unknown Only");
+  toggleBtn->setStyleClass("btn-outline-secondary align-self-start mb-3");
 
   toggleBtn->clicked().connect([=] {
     mShowUnknownOnly = !mShowUnknownOnly;
@@ -31,9 +30,9 @@ DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
     rebuildRows();
   });
 
-  container->addNew<Wt::WBreak>();
-
   mWordTable = container->addNew<Wt::WTable>();
+  mWordTable->setStyleClass("table table-hover align-middle word-table");
+  mWordTable->setHeaderCount(1);
 
   loadData();
 }
@@ -89,16 +88,21 @@ void DisplayWordsPage::buildTable() {
 
     mWordTable->elementAt(rowCount, 0)
         ->addWidget(std::make_unique<Wt::WText>(r.word));
+    mWordTable->elementAt(rowCount, 0)->setAttributeValue("dir", "auto");
 
     mWordTable->elementAt(rowCount, 1)
         ->addWidget(std::make_unique<Wt::WText>(std::to_string(r.count)));
 
-    mWordTable->elementAt(rowCount, 2)
-        ->addWidget(std::make_unique<Wt::WText>(r.known ? "✔" : "✘"));
+    auto knownBadge =
+        std::make_unique<Wt::WText>(r.known ? "Known" : "Unknown");
+    knownBadge->setStyleClass(r.known ? "badge text-bg-success"
+                                      : "badge text-bg-secondary");
+    mWordTable->elementAt(rowCount, 2)->addWidget(std::move(knownBadge));
 
     if (!r.known) {
       auto makeKnownButton =
           std::make_unique<Wt::WPushButton>("I know this one!");
+      makeKnownButton->setStyleClass("btn-sm btn-outline-success");
 
       makeKnownButton->clicked().connect([=] {
         for (RowData &row : mRows) {
@@ -115,6 +119,7 @@ void DisplayWordsPage::buildTable() {
     }
 
     auto viewSourceButton = std::make_unique<Wt::WPushButton>("View source");
+    viewSourceButton->setStyleClass("btn-sm btn-outline-primary");
     viewSourceButton->clicked().connect([=] {
       mAppContext->selectedWord = r.word;
       mAppContext->wordSelected.emit();

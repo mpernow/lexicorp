@@ -25,8 +25,10 @@ cmake --build build/debug --target run     # debug -> http://localhost:9090
 cmake --build build/release --target run   # release -> http://localhost:8080
 ```
 
-The `run` target passes `--docroot <project root>` and copies `resources/` next
-to the binary as a post-build step. At runtime the app opens/creates
+The `run` target passes `--docroot <project root>` and
+`--resources-dir <Wt's installed resources/>` (found at configure time as
+`WT_RESOURCES_DIR`; without it the Bootstrap 5 theme CSS 404s), and copies
+`resources/` next to the binary as a post-build step. At runtime the app opens/creates
 `lexiCorp.db` in the working directory (project root when launched via `run`);
 this file is gitignored.
 

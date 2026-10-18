@@ -2,9 +2,29 @@
 #include <Wt/WBreak.h>
 #include <Wt/WCheckBox.h>
 #include <Wt/WContainerWidget.h>
+#include <Wt/WLabel.h>
 
 #include "db/WordText.h"
 #include "pages/InsertTextPage.h"
+
+namespace {
+// Grows the text area with its content (never below its `rows` height),
+// up to the CSS max-height of .auto-grow.
+void autoGrow(Wt::WTextArea *textArea) {
+  textArea->addStyleClass("auto-grow");
+  textArea->doJavaScript(
+      "(function(el) {"
+      "  function fit() {"
+      "    el.style.height = 'auto';"
+      "    el.style.height ="
+      "        (el.scrollHeight + el.offsetHeight - el.clientHeight) + 'px';"
+      "  }"
+      "  el.addEventListener('input', fit);"
+      "  fit();"
+      "})(" +
+      textArea->jsRef() + ");");
+}
+} // namespace
 
 InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
     : mAppContext(appContext) {
@@ -15,30 +35,44 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
   container->resize(Wt::WLength("100%"), Wt::WLength("100%"));
   container->setOverflow(Wt::Overflow::Auto);
 
-  container->addNew<Wt::WText>("Enter your text here");
+  auto textLabel = container->addNew<Wt::WLabel>("Text");
+  textLabel->setStyleClass("form-label fw-semibold");
   textEdit_ = container->addNew<Wt::WTextArea>();
-  textEdit_->setStyleClass("textarea");
+  textEdit_->setStyleClass("form-control mb-3");
+  textEdit_->setRows(10);
+  textEdit_->setPlaceholderText("Paste the text you want to learn from");
+  textEdit_->setAttributeValue("dir", "auto");
+  autoGrow(textEdit_);
+  textLabel->setBuddy(textEdit_);
 
-  container->addNew<Wt::WText>("Source: ");
+  auto sourceLabel = container->addNew<Wt::WLabel>("Source");
+  sourceLabel->setStyleClass("form-label fw-semibold");
   mSourceTextArea = container->addNew<Wt::WTextArea>();
+  mSourceTextArea->setStyleClass("form-control mb-3");
+  mSourceTextArea->setRows(1);
+  mSourceTextArea->setPlaceholderText("Where the text came from, e.g. a URL");
+  mSourceTextArea->setAttributeValue("dir", "auto");
+  autoGrow(mSourceTextArea);
+  sourceLabel->setBuddy(mSourceTextArea);
 
   Wt::WPushButton *button = container->addNew<Wt::WPushButton>("Process");
-  button->setStyleClass("button");
-
-  container->addNew<Wt::WBreak>();
+  button->setStyleClass("btn-primary align-self-start mb-4");
 
   button->clicked().connect(this, &InsertTextPage::process);
 
   auto tableContainer = container->addNew<Wt::WContainerWidget>();
   tableContainer->setStyleClass("table-container");
   mWordTable = tableContainer->addNew<Wt::WTable>();
+  mWordTable->setStyleClass("table table-hover table-sm align-middle");
+  mWordTable->setHeaderCount(1);
 
   mSubmitButton = container->addNew<Wt::WPushButton>("Submit");
+  mSubmitButton->setStyleClass("btn-success align-self-start mt-3");
   mSubmitButton->clicked().connect(this, &InsertTextPage::submit);
   mSubmitButton->hide();
 
   mResultsText = container->addNew<Wt::WText>();
-  mResultsText->setStyleClass("default-text");
+  mResultsText->setInline(false);
 }
 
 void InsertTextPage::process() {
@@ -68,6 +102,7 @@ void InsertTextPage::process() {
 
     mWordTable->elementAt(row, 0)->addWidget(
         std::make_unique<Wt::WText>(rowData.word));
+    mWordTable->elementAt(row, 0)->setAttributeValue("dir", "auto");
 
     mWordTable->elementAt(row, 1)->addWidget(
         std::make_unique<Wt::WText>(std::to_string(rowData.count)));
@@ -95,9 +130,11 @@ void InsertTextPage::process() {
 void InsertTextPage::submit() {
   if (mAppContext->textRepository->getByHash(static_cast<int>(mHash))) {
     mResultsText->setText("This text has already been added.");
+    mResultsText->setStyleClass("alert alert-warning mt-3");
     return;
   }
   mResultsText->setText("");
+  mResultsText->setStyleClass("");
 
   std::vector<db::models::Word> wordsToSave;
   for (const RowData row : mRows) {

@@ -167,10 +167,12 @@ void ViewSourcePage::addSourceBlock(const db::models::Text &text,
   auto sourceWidget = textBlock->addNew<Wt::WText>(
       Wt::WString::fromUTF8("Source: " + source), Wt::TextFormat::Plain);
   sourceWidget->setInline(false);
+  sourceWidget->setAttributeValue("dir", "auto");
   sourceWidget->setStyleClass("source-label");
 
   auto textWidget = textBlock->addNew<Wt::WText>(
       Wt::WString::fromUTF8(textHtml), Wt::TextFormat::XHTML);
   textWidget->setInline(false);
   textWidget->setStyleClass("source-text");
+  textWidget->setAttributeValue("dir", "auto");
 }

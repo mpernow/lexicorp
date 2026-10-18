@@ -37,9 +37,24 @@ else()
     set(RUN_PORT 8080)
 endif()
 
+# Wt's own resources (Bootstrap theme CSS/JS etc.). The docroot's resources/
+# folder only holds our style.css, so point Wt at its installed copy.
+find_path(WT_RESOURCES_DIR
+    NAMES themes/bootstrap/5/main.css
+    PATHS ${Wt_DIR}/../../../share/Wt/resources
+          /usr/local/share/Wt/resources
+          /usr/share/Wt/resources
+    NO_DEFAULT_PATH
+)
+if(NOT WT_RESOURCES_DIR)
+    message(WARNING "Wt resources folder not found; the theme will not load. "
+                    "Set WT_RESOURCES_DIR to <wt-prefix>/share/Wt/resources.")
+endif()
+
 add_custom_target(run
     COMMAND $<TARGET_FILE:LexiCorp>
             --docroot ${PROJECT_SOURCE_DIR}
+            --resources-dir ${WT_RESOURCES_DIR}
             --http-address 0.0.0.0
             --http-port ${RUN_PORT}
     DEPENDS main

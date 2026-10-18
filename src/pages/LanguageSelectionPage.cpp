@@ -17,6 +17,7 @@ LanguageSelectionPage::LanguageSelectionPage(
   result->setStyleClass("default-text");
 
   auto combo = container->addWidget(std::make_unique<Wt::WComboBox>());
+  combo->setStyleClass("form-select w-auto");
   for (utils::Language language : languages) {
     combo->addItem(utils::to_string(language));
   }
@@ -27,7 +28,7 @@ LanguageSelectionPage::LanguageSelectionPage(
   });
 
   Wt::WPushButton *button = container->addNew<Wt::WPushButton>("Submit");
-  button->setStyleClass("button");
+  button->setStyleClass("btn-primary");
 
   combo->changed().connect([=] {
     result->setText("You selected: " + combo->currentText().toUTF8());
