@@ -1,5 +1,6 @@
 #pragma once
 #include "db/Text.h"
+#include "utils/Language.h"
 
 #include <optional>
 #include <vector>
@@ -12,5 +13,7 @@ public:
   virtual void add(const models::Text &text) = 0;
   virtual std::optional<models::Text> getByHash(const int hash) = 0;
   virtual std::vector<models::Text> getAll() = 0;
+  virtual std::vector<models::Text>
+  getAll(const utils::Language &language) = 0;
 };
 } // namespace db

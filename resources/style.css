@@ -74,6 +74,21 @@ button {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
+.source-heading {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+.source-label {
+  color: #666;
+  font-size: 13px;
+  font-style: italic;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+}
+
 .source-text {
   white-space: pre-wrap;
   line-height: 1.6;

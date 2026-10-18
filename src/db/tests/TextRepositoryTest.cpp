@@ -92,3 +92,25 @@ TEST(TextRepositoryTests, DuplicateHashInsertThrows) {
 
   EXPECT_THROW(textRepository.add(text), sqlite::database_exception);
 }
+
+TEST(TextRepositoryTests, GetAllByLanguageTest) {
+  std::string dbName = ":memory:";
+  auto dbHandler = db::DatabaseHandler{dbName};
+  auto textRepository = db::TextRepository{dbHandler.getConnection()};
+
+  textRepository.add(db::models::Text(L"Second English text", 2,
+                                      utils::Language::English, L"b-source"));
+  textRepository.add(db::models::Text(L"Une texte", 3, utils::Language::French,
+                                      L"fr-source"));
+  textRepository.add(db::models::Text(L"First English text", 1,
+                                      utils::Language::English, L"a-source"));
+
+  auto english = textRepository.getAll(utils::Language::English);
+
+  // Only English texts, ordered by source label.
+  ASSERT_EQ(english.size(), 2);
+  EXPECT_EQ(english[0].source, L"a-source");
+  EXPECT_EQ(english[1].source, L"b-source");
+
+  EXPECT_TRUE(textRepository.getAll(utils::Language::Kurdish).empty());
+}

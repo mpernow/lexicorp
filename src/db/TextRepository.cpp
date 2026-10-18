@@ -58,4 +58,23 @@ std::vector<models::Text> TextRepository::getAll() {
   return text;
 }
 
+std::vector<models::Text>
+TextRepository::getAll(const utils::Language &language) {
+  sqlite::query q{mDbConn, "SELECT text, hash, language, source FROM text "
+                           "WHERE language = ? ORDER BY source"};
+  q.bind(1, utils::to_string(language));
+  sqlite::result_type res = q.get_result();
+
+  std::vector<models::Text> text;
+
+  while (res->next_row()) {
+    text.emplace_back(models::Text{
+        Utils::fromUtf8(res->get<std::string>(0)), res->get<int>(1),
+        utils::language_from_string(res->get<std::string>(2)),
+        Utils::fromUtf8(res->get<std::string>(3))});
+  }
+
+  return text;
+}
+
 } // namespace db

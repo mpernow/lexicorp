@@ -2,7 +2,7 @@
 #include "db/Text.h"
 #include "db/Utils.h"
 #include "db/WordText.h"
-#include <Wt/Utils.h>
+#include <Wt/WApplication.h>
 #include <Wt/WBreak.h>
 #include <Wt/WText.h>
 #include <algorithm>
@@ -16,12 +16,21 @@ ViewSourcePage::ViewSourcePage(std::shared_ptr<AppContext> appContext)
   auto container = addWidget(std::make_unique<Wt::WContainerWidget>());
   container->setStyleClass("main-container");
 
+  mHeading = container->addNew<Wt::WText>();
+  mHeading->setInline(false);
+  mHeading->setStyleClass("source-heading");
+
   mTextsContainer =
       container->addWidget(std::make_unique<Wt::WContainerWidget>());
 
-  WordSelected();
+  refresh();
 
-  mAppContext->wordSelected.connect([this] { WordSelected(); });
+  Wt::WApplication::instance()->internalPathChanged().connect(
+      [this](const std::string &path) {
+        if (path.starts_with("/source"))
+          refresh();
+      });
+  mAppContext->languageChanged.connect([this] { refresh(); });
 }
 
 std::string htmlEscape(const std::string &input) {
@@ -100,38 +109,68 @@ std::string highlightWithBreakIterator(const std::string &utf8Text,
   return result;
 }
 
-void ViewSourcePage::WordSelected() {
-  mSelectedWord = mAppContext->selectedWord;
-
-  mTextsVec.clear();
+void ViewSourcePage::refresh() {
   mTextsContainer->clear();
 
+  if (Wt::WApplication::instance()->internalPath() == "/source/word" &&
+      !mAppContext->selectedWord.empty()) {
+    showWordSources();
+  } else {
+    showAllSources();
+  }
+}
+
+void ViewSourcePage::showWordSources() {
+  const std::wstring &selectedWord = mAppContext->selectedWord;
+  std::string utf8Word = db::Utils::toUtf8(selectedWord);
+
   auto wordTextVec = mAppContext->wordTextRepository->getByWord(
-      mSelectedWord, mAppContext->selectedLanguage);
+      selectedWord, mAppContext->selectedLanguage);
   std::sort(wordTextVec.begin(), wordTextVec.end(),
-            [](db::models::WordText wt1, db::models::WordText wt2) {
+            [](const db::models::WordText &wt1,
+               const db::models::WordText &wt2) {
               return wt1.numOccurrences > wt2.numOccurrences;
             });
 
-  for (db::models::WordText &wt : wordTextVec) {
+  mHeading->setText(Wt::WString::fromUTF8("Sources containing \"" + utf8Word +
+                                          "\""));
+  mHeading->setTextFormat(Wt::TextFormat::Plain);
+
+  for (const db::models::WordText &wt : wordTextVec) {
     // TODO: Handle case of std::optional being nullopt - it is an error
     if (auto text = mAppContext->textRepository->getByHash(wt.textHash)) {
-      mTextsVec.push_back(*text);
+      addSourceBlock(*text, highlightWithBreakIterator(
+                                db::Utils::toUtf8(text->text), utf8Word));
     }
   }
+}
 
-  for (db::models::Text t : mTextsVec) {
-    auto textBlock = mTextsContainer->addNew<Wt::WContainerWidget>();
-    textBlock->setStyleClass("source-block");
+void ViewSourcePage::showAllSources() {
+  auto texts =
+      mAppContext->textRepository->getAll(mAppContext->selectedLanguage);
 
-    std::string utf8Text = Wt::Utils::htmlEncode(db::Utils::toUtf8(t.text));
-    std::string utf8Word = db::Utils::toUtf8(mSelectedWord);
+  mHeading->setText("All sources (" + std::to_string(texts.size()) + ")");
+  mHeading->setTextFormat(Wt::TextFormat::Plain);
 
-    std::string highlighted = highlightWithBreakIterator(utf8Text, utf8Word);
-
-    auto textWidget = textBlock->addNew<Wt::WText>(
-        Wt::WString::fromUTF8(highlighted), Wt::TextFormat::XHTML);
-    textWidget->setInline(false);
-    textWidget->setStyleClass("source-text");
+  for (const db::models::Text &text : texts) {
+    addSourceBlock(text, htmlEscape(db::Utils::toUtf8(text.text)));
   }
+}
+
+void ViewSourcePage::addSourceBlock(const db::models::Text &text,
+                                    const std::string &textHtml) {
+  auto textBlock = mTextsContainer->addNew<Wt::WContainerWidget>();
+  textBlock->setStyleClass("source-block");
+
+  std::string source =
+      text.source.empty() ? "(no source)" : db::Utils::toUtf8(text.source);
+  auto sourceWidget = textBlock->addNew<Wt::WText>(
+      Wt::WString::fromUTF8("Source: " + source), Wt::TextFormat::Plain);
+  sourceWidget->setInline(false);
+  sourceWidget->setStyleClass("source-label");
+
+  auto textWidget = textBlock->addNew<Wt::WText>(
+      Wt::WString::fromUTF8(textHtml), Wt::TextFormat::XHTML);
+  textWidget->setInline(false);
+  textWidget->setStyleClass("source-text");
 }

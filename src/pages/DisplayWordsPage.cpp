@@ -118,7 +118,7 @@ void DisplayWordsPage::buildTable() {
     viewSourceButton->clicked().connect([=] {
       mAppContext->selectedWord = r.word;
       mAppContext->wordSelected.emit();
-      Wt::WApplication::instance()->setInternalPath("/source", true);
+      Wt::WApplication::instance()->setInternalPath("/source/word", true);
     });
     mWordTable->elementAt(rowCount, 4)->addWidget(std::move(viewSourceButton));
 

@@ -13,6 +13,7 @@ public:
   void add(const models::Text &text) override;
   std::optional<models::Text> getByHash(const int hash) override;
   std::vector<models::Text> getAll() override;
+  std::vector<models::Text> getAll(const utils::Language &language) override;
 
 private:
   sqlite::connection &mDbConn;
