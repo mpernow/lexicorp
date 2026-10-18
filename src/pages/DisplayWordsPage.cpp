@@ -95,7 +95,7 @@ void DisplayWordsPage::buildTable() {
   countLabel += mAscending ? " ▲" : " ▼";
   auto countText = std::make_unique<Wt::WText>(countLabel);
   countText->setStyleClass("clickable-header");
-  countText->clicked().connect([=] {
+  countText->clicked().connect([this] {
     mAscending = !mAscending;
     sortRows();
     buildTable();
@@ -110,8 +110,8 @@ void DisplayWordsPage::buildTable() {
     auto wordButton = std::make_unique<Wt::WPushButton>(Wt::WString(r.word));
     wordButton->setStyleClass("btn-link word-link");
     wordButton->setToolTip("View sources");
-    wordButton->clicked().connect([=] {
-      mAppContext->selectedWord = r.word;
+    wordButton->clicked().connect([this, word = r.word] {
+      mAppContext->selectedWord = word;
       mAppContext->wordSelected.emit();
       Wt::WApplication::instance()->setInternalPath("/source/word", true);
     });
@@ -128,7 +128,7 @@ void DisplayWordsPage::buildTable() {
     knownSwitch->setChecked(r.known);
     knownSwitch->setToolTip("Known");
     Wt::WCheckBox *knownSwitchPtr = knownSwitch.get();
-    knownSwitch->changed().connect([=] {
+    knownSwitch->changed().connect([this, r, knownSwitchPtr] {
       bool known = knownSwitchPtr->isChecked();
       for (RowData &row : mRows) {
         if (row.word == r.word) {
