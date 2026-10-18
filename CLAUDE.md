@@ -113,6 +113,18 @@ which words to keep and mark as known, then writes rows to all three tables;
 `DisplayWordsPage` lists/sorts/filters `words`; `ViewSourcePage` joins back
 through `word_text` to `text`.
 
+## Deployment (Raspberry Pi)
+
+`deploy.sh` (run on the Pi as a normal user) does `git pull --ff-only`,
+release build + tests, a pre-deploy DB backup, installs the binary and
+`resources/` to `/opt/lexicorp`, and restarts the `lexicorp` systemd service.
+The service runs as user `lexicorp` with `WorkingDirectory=/var/lib/lexicorp`,
+so the live database is `/var/lib/lexicorp/lexiCorp.db`; it listens on
+`127.0.0.1:8080` and is exposed via `tailscale serve`. The binary must stay
+self-contained (our libs and vsqlite++ linked statically — see
+`BUILD_SHARED_LIBS` in the top-level `CMakeLists.txt`) since it is copied
+out of the build tree.
+
 ## Notes
 
 - Do not run `git commit` yourself. Leave staging and committing to the
