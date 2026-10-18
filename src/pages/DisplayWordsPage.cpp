@@ -101,51 +101,46 @@ void DisplayWordsPage::buildTable() {
     buildTable();
   });
   mWordTable->elementAt(0, 1)->addWidget(std::move(countText));
-  mWordTable->elementAt(0, 2)->addWidget(std::make_unique<Wt::WText>("Known?"));
+  mWordTable->elementAt(0, 2)->addWidget(std::make_unique<Wt::WText>("Known"));
 
   int rowCount = 1;
   for (auto &r : mFilteredRows) {
 
-    mWordTable->elementAt(rowCount, 0)
-        ->addWidget(std::make_unique<Wt::WText>(r.word));
+    // Tapping the word opens the texts it appears in.
+    auto wordButton = std::make_unique<Wt::WPushButton>(Wt::WString(r.word));
+    wordButton->setStyleClass("btn-link word-link");
+    wordButton->setToolTip("View sources");
+    wordButton->clicked().connect([=] {
+      mAppContext->selectedWord = r.word;
+      mAppContext->wordSelected.emit();
+      Wt::WApplication::instance()->setInternalPath("/source/word", true);
+    });
+    mWordTable->elementAt(rowCount, 0)->addWidget(std::move(wordButton));
     mWordTable->elementAt(rowCount, 0)->setAttributeValue("dir", "auto");
 
     mWordTable->elementAt(rowCount, 1)
         ->addWidget(std::make_unique<Wt::WText>(std::to_string(r.count)));
 
-    auto knownBadge =
-        std::make_unique<Wt::WText>(r.known ? "Known" : "Unknown");
-    knownBadge->setStyleClass(r.known ? "badge text-bg-success"
-                                      : "badge text-bg-secondary");
-    mWordTable->elementAt(rowCount, 2)->addWidget(std::move(knownBadge));
-
-    if (!r.known) {
-      auto makeKnownButton =
-          std::make_unique<Wt::WPushButton>("I know this one!");
-      makeKnownButton->setStyleClass("btn-sm btn-outline-success");
-
-      makeKnownButton->clicked().connect([=] {
-        for (RowData &row : mRows) {
-          if (row.word == r.word) {
-            row.known = true;
-          }
+    // Bootstrap draws a switch for a checkbox inside .form-check.form-switch.
+    auto switchWrapper = std::make_unique<Wt::WContainerWidget>();
+    switchWrapper->setStyleClass("form-check form-switch known-switch");
+    auto knownSwitch = std::make_unique<Wt::WCheckBox>();
+    knownSwitch->setChecked(r.known);
+    knownSwitch->setToolTip("Known");
+    Wt::WCheckBox *knownSwitchPtr = knownSwitch.get();
+    knownSwitch->changed().connect([=] {
+      bool known = knownSwitchPtr->isChecked();
+      for (RowData &row : mRows) {
+        if (row.word == r.word) {
+          row.known = known;
         }
-        rebuildRows();
-        mAppContext->wordRepository->update(db::models::Word{
-            r.word, r.count, true, mAppContext->selectedLanguage});
-      });
-
-      mWordTable->elementAt(rowCount, 3)->addWidget(std::move(makeKnownButton));
-    }
-
-    auto viewSourceButton = std::make_unique<Wt::WPushButton>("View source");
-    viewSourceButton->setStyleClass("btn-sm btn-outline-primary");
-    viewSourceButton->clicked().connect([=] {
-      mAppContext->selectedWord = r.word;
-      mAppContext->wordSelected.emit();
-      Wt::WApplication::instance()->setInternalPath("/source/word", true);
+      }
+      mAppContext->wordRepository->update(db::models::Word{
+          r.word, r.count, known, mAppContext->selectedLanguage});
+      rebuildRows();
     });
-    mWordTable->elementAt(rowCount, 4)->addWidget(std::move(viewSourceButton));
+    switchWrapper->addWidget(std::move(knownSwitch));
+    mWordTable->elementAt(rowCount, 2)->addWidget(std::move(switchWrapper));
 
     rowCount++;
   }

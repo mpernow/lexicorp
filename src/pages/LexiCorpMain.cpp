@@ -7,7 +7,6 @@
 #include <Wt/WApplication.h>
 #include <Wt/WBootstrap5Theme.h>
 #include <Wt/WContainerWidget.h>
-#include <Wt/WHBoxLayout.h>
 #include <Wt/WLabel.h>
 #include <Wt/WMenu.h>
 #include <Wt/WMenuItem.h>
@@ -25,6 +24,8 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
 
   useStyleSheet("resources/style.css");
 
+  addHeadTags();
+
   mAppContext = std::make_shared<AppContext>();
 
   // Restore the language chosen in a previous session, if any.
@@ -34,25 +35,26 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
       mAppContext->selectedLanguage = language;
   }
 
-  auto mainLayout = root()->setLayout(std::make_unique<Wt::WHBoxLayout>());
-  mainLayout->setContentsMargins(0, 0, 0, 0);
-  mainLayout->setSpacing(0);
+  // Plain flexbox rather than a Wt layout manager, so CSS media queries can
+  // turn the sidebar into a top bar on narrow screens (see style.css).
+  root()->addStyleClass("app-shell");
 
   // --- Sidebar container ---
-  auto sidebar = std::make_unique<Wt::WContainerWidget>();
-  sidebar->setStyleClass(
-      "sidebar bg-body-tertiary border-end p-3 d-flex flex-column");
-  sidebar->setWidth(250);
+  auto sidebar = root()->addNew<Wt::WContainerWidget>();
+  sidebar->setStyleClass("sidebar bg-body-tertiary");
 
   auto brand = sidebar->addNew<Wt::WText>("LexiCorp");
   brand->setStyleClass("sidebar-brand fs-4 fw-semibold mb-4");
   brand->setInline(false);
 
-  auto languageLabel = sidebar->addNew<Wt::WLabel>("Language");
+  auto languageGroup = sidebar->addNew<Wt::WContainerWidget>();
+  languageGroup->setStyleClass("sidebar-language");
+  auto languageLabel = languageGroup->addNew<Wt::WLabel>("Language");
   languageLabel->setStyleClass("form-label small text-body-secondary");
 
-  auto languageCombo = sidebar->addWidget(std::make_unique<Wt::WComboBox>());
-  languageCombo->setStyleClass("form-select mb-4");
+  auto languageCombo =
+      languageGroup->addWidget(std::make_unique<Wt::WComboBox>());
+  languageCombo->setStyleClass("form-select");
   languageLabel->setBuddy(languageCombo);
   mLanguageCombo = languageCombo;
 
@@ -81,14 +83,16 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
     }
   });
 
-  auto content =
-      mainLayout->addWidget(std::make_unique<Wt::WContainerWidget>(), 1);
-  content->setOverflow(Wt::Overflow::Auto);
+  auto content = root()->addNew<Wt::WContainerWidget>();
+  content->setStyleClass("app-content");
 
   auto stack = content->addWidget(std::make_unique<Wt::WStackedWidget>());
+  // WStackedWidget clips its contents by default, which would stop sticky
+  // table headers and the sticky Submit button from sticking.
+  stack->setOverflow(Wt::Overflow::Visible);
 
   auto menu = std::make_unique<Wt::WMenu>(stack);
-  menu->setStyleClass("nav nav-pills flex-column gap-1");
+  menu->setStyleClass("nav nav-pills sidebar-nav gap-1");
 
   // Enable URL routing. The base path must be explicit: the default is the
   // internal path at startup, so opening the app on e.g. /list would make
@@ -120,7 +124,7 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
 
   // --- Dark mode switch, pinned to the bottom of the sidebar ---
   mDarkModeSwitch = sidebar->addNew<Wt::WCheckBox>("Dark mode");
-  mDarkModeSwitch->addStyleClass("form-switch mt-auto pt-3");
+  mDarkModeSwitch->addStyleClass("form-switch theme-switch");
   mDarkModeSwitch->changed().connect([this] {
     bool dark = mDarkModeSwitch->isChecked();
     applyTheme(dark);
@@ -141,14 +145,45 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
         {"window.matchMedia('(prefers-color-scheme: dark)').matches"}));
   }
 
-  // --- Add to layout ---
-  mainLayout->insertWidget(0, std::move(sidebar));
-
   // Default route
   if (internalPath().empty() || internalPath() == "/") {
     setInternalPath("/", true);
   }
   markActive();
+}
+
+void LexiCorpMain::addHeadTags() {
+  // Wt's JavaScript bootstrap page leaves out headers set with
+  // addMetaHeader()/addMetaLink(), so add the tags from the browser instead.
+  auto url = [this](const std::string &path) {
+    return Wt::WString(resolveRelativeUrl(path)).jsStringLiteral();
+  };
+  doJavaScript(
+      "(function() {"
+      "  function add(tag, attrs) {"
+      "    var e = document.createElement(tag);"
+      "    for (var k in attrs) e.setAttribute(k, attrs[k]);"
+      "    document.head.appendChild(e);"
+      "  }"
+      // Phones otherwise lay the page out at desktop width and zoom out.
+      "  add('meta', {name: 'viewport',"
+      "               content: 'width=device-width, initial-scale=1'});"
+      // Installable as a home-screen app (see resources/manifest.json).
+      "  add('meta', {name: 'theme-color', content: '#0d6efd'});"
+      "  add('meta', {name: 'mobile-web-app-capable', content: 'yes'});"
+      "  add('meta', {name: 'apple-mobile-web-app-capable', content: 'yes'});"
+      "  add('meta', {name: 'apple-mobile-web-app-title',"
+      "               content: 'LexiCorp'});"
+      "  add('link', {rel: 'manifest', href: " +
+      url("resources/manifest.json") +
+      "});"
+      "  add('link', {rel: 'apple-touch-icon', sizes: '180x180', href: " +
+      url("resources/icons/apple-touch-icon.png") +
+      "});"
+      "  add('link', {rel: 'icon', type: 'image/png', sizes: '32x32', href: " +
+      url("resources/icons/favicon-32.png") +
+      "});"
+      "})();");
 }
 
 void LexiCorpMain::applyTheme(bool dark) {

@@ -32,8 +32,6 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
 
   auto container = addWidget(std::make_unique<Wt::WContainerWidget>());
   container->setStyleClass("main-container");
-  container->resize(Wt::WLength("100%"), Wt::WLength("100%"));
-  container->setOverflow(Wt::Overflow::Auto);
 
   auto textLabel = container->addNew<Wt::WLabel>("Text");
   textLabel->setStyleClass("form-label fw-semibold");
@@ -63,11 +61,14 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
   auto tableContainer = container->addNew<Wt::WContainerWidget>();
   tableContainer->setStyleClass("table-container");
   mWordTable = tableContainer->addNew<Wt::WTable>();
-  mWordTable->setStyleClass("table table-hover table-sm align-middle");
+  mWordTable->setStyleClass(
+      "table table-hover table-sm align-middle word-select-table");
   mWordTable->setHeaderCount(1);
 
   mSubmitButton = container->addNew<Wt::WPushButton>("Submit");
-  mSubmitButton->setStyleClass("btn-success align-self-start mt-3");
+  // Sticks to the bottom of the screen while scrolling a long word table.
+  mSubmitButton->setStyleClass(
+      "btn-success align-self-start mt-3 sticky-submit");
   mSubmitButton->clicked().connect(this, &InsertTextPage::submit);
   mSubmitButton->hide();
 

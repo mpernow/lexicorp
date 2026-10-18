@@ -181,8 +181,8 @@ TEST_F(PagesTest, RestoredLanguageIsUsedForWordList) {
 
   auto *page = findOne<DisplayWordsPage>(app.root());
   ASSERT_NE(page, nullptr);
-  EXPECT_TRUE(containsText(page, "kurdishword"));
-  EXPECT_FALSE(containsText(page, "englishword"));
+  EXPECT_NE(findButton(page, "kurdishword"), nullptr);
+  EXPECT_EQ(findButton(page, "englishword"), nullptr);
 }
 
 Wt::WCheckBox *findDarkModeSwitch(Wt::WApplication &app) {
@@ -313,7 +313,7 @@ TEST_F(PagesTest, WordListShowsEmptyStateWhenAllWordsKnown) {
 
   auto *page = findOne<DisplayWordsPage>(app.root());
   ASSERT_NE(page, nullptr);
-  EXPECT_TRUE(containsText(page, "cat"));
+  EXPECT_NE(findButton(page, "cat"), nullptr);
 
   findButton(page, "Show Unknown Only")->clicked().emit(Wt::WMouseEvent());
   EXPECT_TRUE(anyTextContains(page, "you know them all"));
@@ -354,7 +354,7 @@ TEST_F(PagesTest, WordListReloadsWhenNavigatedTo) {
 
   auto *page = findOne<DisplayWordsPage>(app.root());
   ASSERT_NE(page, nullptr);
-  EXPECT_TRUE(containsText(page, "lateword"));
+  EXPECT_NE(findButton(page, "lateword"), nullptr);
 }
 
 TEST_F(PagesTest, SubmittingSameTextTwiceDoesNotThrowOrDoubleCount) {
@@ -380,7 +380,7 @@ TEST_F(PagesTest, SubmittingSameTextTwiceDoesNotThrowOrDoubleCount) {
   // Submitting navigates to the word list, which must show the new words.
   auto *list = findOne<DisplayWordsPage>(app.root());
   ASSERT_NE(list, nullptr);
-  EXPECT_TRUE(containsText(list, "the"));
+  EXPECT_NE(findButton(list, "the"), nullptr);
 
   app.setInternalPath("/insert", true);
   EXPECT_NO_THROW(submitButton->clicked().emit(Wt::WMouseEvent()));
@@ -413,7 +413,7 @@ TEST_F(PagesTest, SidebarViewSourceListsAllSourcesWithoutHighlight) {
   EXPECT_FALSE(anyTextContains(page, "highlight-word"));
 }
 
-TEST_F(PagesTest, ViewSourceButtonHighlightsSelectedWord) {
+TEST_F(PagesTest, TappingWordHighlightsItInSources) {
   addText(L"cat sat here", 1, L"first-source", utils::Language::English);
   addText(L"dog ran there", 2, L"second-source", utils::Language::English);
   addWord(L"cat", utils::Language::English);
@@ -424,7 +424,7 @@ TEST_F(PagesTest, ViewSourceButtonHighlightsSelectedWord) {
 
   auto *list = findOne<DisplayWordsPage>(app.root());
   ASSERT_NE(list, nullptr);
-  auto *button = findButton(list, "View source");
+  auto *button = findButton(list, "cat");
   ASSERT_NE(button, nullptr);
   button->clicked().emit(Wt::WMouseEvent());
 
@@ -449,7 +449,7 @@ TEST_F(PagesTest, SidebarViewSourceAfterWordSelectionShowsAllSources) {
   app.setInternalPath("/list", true);
   auto *list = findOne<DisplayWordsPage>(app.root());
   ASSERT_NE(list, nullptr);
-  findButton(list, "View source")->clicked().emit(Wt::WMouseEvent());
+  findButton(list, "cat")->clicked().emit(Wt::WMouseEvent());
   ASSERT_EQ(app.internalPath(), "/source/word");
 
   // ...then the sidebar link is followed.
@@ -460,9 +460,38 @@ TEST_F(PagesTest, SidebarViewSourceAfterWordSelectionShowsAllSources) {
   EXPECT_FALSE(anyTextContains(page, "highlight-word"));
 }
 
+TEST_F(PagesTest, KnownSwitchUpdatesWord) {
+  addWord(L"cat", utils::Language::English);
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/list", true);
+  auto *list = findOne<DisplayWordsPage>(app.root());
+  ASSERT_NE(list, nullptr);
+
+  auto isKnown = [] {
+    db::DatabaseHandler dbHandler;
+    db::WordRepository words{dbHandler.getConnection()};
+    return words.getByText(L"cat", utils::Language::English)->known;
+  };
+  auto toggle = [list] {
+    auto *knownSwitch = findOne<Wt::WCheckBox>(list);
+    ASSERT_NE(knownSwitch, nullptr);
+    knownSwitch->setChecked(!knownSwitch->isChecked());
+    knownSwitch->changed().emit();
+  };
+
+  ASSERT_FALSE(isKnown());
+  toggle();
+  EXPECT_TRUE(isKnown());
+  EXPECT_TRUE(findOne<Wt::WCheckBox>(list)->isChecked());
+  toggle();
+  EXPECT_FALSE(isKnown());
+}
+
 // Reloading the browser on a page starts the session on that path; routing
 // must still work from there (the menu's base path once came from it).
-TEST_F(PagesTest, ViewSourceButtonWorksWhenSessionStartsOnWordList) {
+TEST_F(PagesTest, TappingWordWorksWhenSessionStartsOnWordList) {
   addText(L"cat sat here", 1, L"first-source", utils::Language::English);
   addWord(L"cat", utils::Language::English);
 
@@ -476,7 +505,7 @@ TEST_F(PagesTest, ViewSourceButtonWorksWhenSessionStartsOnWordList) {
 
   auto *list = findOne<DisplayWordsPage>(app.root());
   ASSERT_NE(list, nullptr);
-  findButton(list, "View source")->clicked().emit(Wt::WMouseEvent());
+  findButton(list, "cat")->clicked().emit(Wt::WMouseEvent());
 
   EXPECT_EQ(app.internalPath(), "/source/word");
   EXPECT_EQ(menu->currentItem()->text(), "View source");

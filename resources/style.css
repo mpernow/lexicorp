@@ -33,6 +33,48 @@ body {
   font-family: "LexiCorp Naskh", var(--bs-body-font-family);
 }
 
+/* --- App shell: sidebar + content, a top bar on narrow screens --- */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 250px;
+  padding: 1rem;
+  border-right: var(--bs-border-width) solid var(--bs-border-color);
+  /* Stays in view while the page scrolls. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+}
+
+.sidebar-language {
+  margin-bottom: 1.5rem;
+}
+
+.sidebar-nav {
+  flex-direction: column;
+}
+
+.theme-switch {
+  margin-top: auto; /* pinned to the bottom of the sidebar */
+  padding-top: 1rem;
+}
+
+.app-content {
+  flex: 1;
+  min-width: 0; /* let wide tables scroll instead of widening the page */
+}
+
+
+
 .main-container {
   display: flex;
   flex-direction: column;
@@ -43,8 +85,6 @@ body {
 }
 
 .table-container {
-  flex: 1;
-  overflow: auto;
   width: 100%;
 }
 
@@ -87,10 +127,120 @@ body {
   line-height: 2.1;
 }
 
+/* Words in the word list: tap to see their sources. */
+.word-link {
+  padding: 0.25rem 0;
+  text-decoration: none;
+  text-align: start;
+}
+.word-link:hover {
+  text-decoration: underline;
+}
+
+/* Bigger tap targets for the per-word switches and checkboxes. */
+.known-switch {
+  margin: 0;
+  min-height: 0;
+}
+.known-switch .form-check-input {
+  width: 2.5em;
+  height: 1.4em;
+  cursor: pointer;
+}
+.word-select-table input[type="checkbox"] {
+  width: 1.35em;
+  height: 1.35em;
+  cursor: pointer;
+}
+
+/* Submit stays reachable while scrolling a long word table. */
+.sticky-submit {
+  position: sticky;
+  bottom: 1rem;
+  z-index: 2;
+  box-shadow: var(--bs-box-shadow);
+}
+
 .highlight-word {
   color: var(--bs-primary-text-emphasis);
   font-weight: bold;
   background: var(--bs-primary-bg-subtle);
   border-radius: 3px;
   padding: 0 2px;
+}
+
+/* Narrow screens; kept last so it overrides the rules above. */
+@media (max-width: 767.98px) {
+  .app-shell {
+    flex-direction: column;
+  }
+
+  /* Row 1: brand, language, dark mode. Row 2: the pages as tabs. */
+  .sidebar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    width: auto;
+    height: auto;
+    position: static;
+    padding: 0.75rem 1rem 0.5rem;
+    border-right: 0;
+    border-bottom: var(--bs-border-width) solid var(--bs-border-color);
+    overflow: visible;
+  }
+
+  .sidebar-brand {
+    margin: 0 auto 0 0 !important;
+    font-size: 1.25rem !important;
+  }
+
+  .sidebar-language {
+    margin: 0;
+  }
+
+  /* The selected language is self-explanatory; keep the label for screen
+     readers only. */
+  .sidebar-language .form-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .sidebar-language .form-select {
+    width: auto;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .theme-switch {
+    margin: 0;
+    padding-top: 0;
+    font-size: 0.875rem;
+  }
+
+  .sidebar-nav {
+    order: 1; /* below the first row */
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .sidebar-nav .nav-link {
+    white-space: nowrap;
+    padding: 0.375rem 0.75rem;
+  }
+
+  .main-container {
+    padding: 1rem;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+  }
 }

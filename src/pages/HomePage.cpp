@@ -41,13 +41,13 @@ HomePage::HomePage(std::shared_ptr<AppContext> appContext)
   mSubtitle->setInline(false);
 
   auto stats = container->addNew<Wt::WContainerWidget>();
-  stats->setStyleClass("row row-cols-1 row-cols-sm-3 g-3 mb-4");
+  stats->setStyleClass("row row-cols-3 g-2 g-sm-3 mb-4");
   mWordCount = addStat(stats, "Words");
   mKnownCount = addStat(stats, "Known");
   mTextCount = addStat(stats, "Texts");
 
   auto actions = container->addNew<Wt::WContainerWidget>();
-  actions->setStyleClass("d-flex gap-2");
+  actions->setStyleClass("d-flex flex-wrap gap-2");
   auto insert = actions->addNew<Wt::WPushButton>("Insert a text");
   insert->setStyleClass("btn-primary");
   insert->clicked().connect([] {
@@ -77,7 +77,7 @@ void HomePage::refresh() {
   auto texts = mAppContext->textRepository->getAll(language);
 
   mSubtitle->setText("Your " + utils::to_string(language) +
-                     " corpus at a glance. Change language in the sidebar.");
+                     " corpus at a glance.");
   mWordCount->setText(std::to_string(words.size()));
   mKnownCount->setText(std::to_string(known));
   mTextCount->setText(std::to_string(texts.size()));

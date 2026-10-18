@@ -16,6 +16,8 @@ public:
 
 private:
   void handlePath(const std::string &path);
+  // Viewport, favicon and web app manifest tags in <head>.
+  void addHeadTags();
   // Sets Bootstrap's colour mode (data-bs-theme on <html>) and the switch.
   void applyTheme(bool dark);
 

@@ -82,7 +82,11 @@ headers in `src/<lib>/include/<lib>/`.
 - **pages** — one `Wt::WContainerWidget` subclass per screen.
   `LexiCorpMain` (`Wt::WApplication`) builds the shell: a sidebar with a
   language `WComboBox` and a `WMenu` bound to a `WStackedWidget`, using
-  internal-path routing. Routes: `""` → `HomePage` (stats overview),
+  internal-path routing (menu base path `/`). The shell is plain flexbox, not
+  a Wt layout manager, so `style.css` can turn the sidebar into a top bar
+  below 768px; the stack's overflow is set visible so `position: sticky`
+  works. `<head>` tags (viewport, manifest, icons) are added from JavaScript
+  in `addHeadTags()`, because Wt's bootstrap page ignores `addMetaHeader()`. Routes: `""` → `HomePage` (stats overview),
   `/insert` → `InsertTextPage`, `/list` → `DisplayWordsPage`, `/source` →
   `ViewSourcePage` (all texts) and `/source/word` (texts containing
   `selectedWord`, highlighted).
