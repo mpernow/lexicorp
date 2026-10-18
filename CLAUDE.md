@@ -78,7 +78,12 @@ headers in `src/<lib>/include/<lib>/`.
   `db/*.h` (`models::Word`, `models::Text`, `models::WordText`); each satisfies
   the `db::Utils::IsDbModel` concept by exposing `static tableName` and
   `static schema()`, and `Utils::createTableSql<T>()` turns that into a
-  `CREATE TABLE IF NOT EXISTS`.
+  `CREATE TABLE IF NOT EXISTS`. For transactions use `db::Savepoint`
+  (`db/Savepoint.h`), not `sqlite::transaction`: it nests (BEGIN can't, so a
+  repository method using BEGIN fails inside a caller's transaction) and
+  rolls back unless `commit()` is called. Batch writes into one: each
+  separate commit waits for the disk, which takes seconds per few hundred rows
+  on the Pi's SD card.
 
 - **processor** — `TextProcessor`: ICU-based pipeline of NFKC normalization →
   strip punctuation/symbols/control chars (keeping apostrophes) → case-fold →
@@ -118,6 +123,13 @@ headers in `src/<lib>/include/<lib>/`.
   starts: `language` and `theme` (`dark` / `light`; without it the browser's
   `prefers-color-scheme` is used). Dark mode is Bootstrap's `data-bs-theme`
   on `<html>`, so CSS should use `--bs-*` variables, not fixed colours.
+
+- **Slow actions** (anything that writes many rows or processes a long
+  text): connect the button's `clicked()` to `&WWidget::disable` *before* the
+  handler, give it the `busy-button` class, and call `enable()` at the start
+  of the handler. `disable()` is a stateless slot, so it runs in the browser
+  immediately: no double clicks, and CSS shows a spinner until the response
+  (see `InsertTextPage`).
 
 - **Text encoding**: text is held in memory as `std::wstring` of Unicode
   code points (UTF-32) and converted to/from UTF-8 only at the SQLite boundary

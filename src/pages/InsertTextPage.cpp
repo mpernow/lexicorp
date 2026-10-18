@@ -4,6 +4,7 @@
 #include <Wt/WContainerWidget.h>
 #include <Wt/WLabel.h>
 
+#include "db/Savepoint.h"
 #include "db/WordText.h"
 #include "pages/InsertTextPage.h"
 
@@ -23,6 +24,13 @@ void autoGrow(Wt::WTextArea *textArea) {
       "  fit();"
       "})(" +
       textArea->jsRef() + ");");
+}
+
+// Returns an auto-grow text area to its `rows` height after its text was
+// cleared from the server (which doesn't fire the `input` event). Measuring
+// with fit() wouldn't work here: the page is usually hidden at that point.
+void resetHeight(Wt::WTextArea *textArea) {
+  textArea->doJavaScript(textArea->jsRef() + ".style.height = '';");
 }
 } // namespace
 
@@ -53,10 +61,14 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
   autoGrow(mSourceTextArea);
   sourceLabel->setBuddy(mSourceTextArea);
 
-  Wt::WPushButton *button = container->addNew<Wt::WPushButton>("Process");
-  button->setStyleClass("btn-primary align-self-start mb-4");
-
-  button->clicked().connect(this, &InsertTextPage::process);
+  mProcessButton = container->addNew<Wt::WPushButton>("Process");
+  mProcessButton->setStyleClass(
+      "btn-primary align-self-start mb-4 busy-button");
+  // disable() runs in the browser as soon as the button is clicked (Wt
+  // treats it as a stateless slot), which blocks double clicks and shows the
+  // .busy-button spinner until the handler re-enables the button.
+  mProcessButton->clicked().connect(mProcessButton, &Wt::WWidget::disable);
+  mProcessButton->clicked().connect(this, &InsertTextPage::process);
 
   auto tableContainer = container->addNew<Wt::WContainerWidget>();
   tableContainer->setStyleClass("table-container");
@@ -64,11 +76,13 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
   mWordTable->setStyleClass(
       "table table-hover table-sm align-middle word-select-table");
   mWordTable->setHeaderCount(1);
+  mWordTable->hide(); // until a text is processed
 
   mSubmitButton = container->addNew<Wt::WPushButton>("Submit");
   // Sticks to the bottom of the screen while scrolling a long word table.
   mSubmitButton->setStyleClass(
-      "btn-success align-self-start mt-3 sticky-submit");
+      "btn-success align-self-start mt-3 sticky-submit busy-button");
+  mSubmitButton->clicked().connect(mSubmitButton, &Wt::WWidget::disable);
   mSubmitButton->clicked().connect(this, &InsertTextPage::submit);
   mSubmitButton->hide();
 
@@ -77,6 +91,7 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
 }
 
 void InsertTextPage::process() {
+  mProcessButton->enable();
   mText = textEdit_->text().value();
   mWordCounts = mTextProcessor->computeFrequencies(mText);
 
@@ -134,6 +149,9 @@ void InsertTextPage::process() {
 }
 
 void InsertTextPage::submit() {
+  mSubmitButton->enable();
+  if (mRows.empty())
+    return; // nothing processed (e.g. the page was just cleared)
   if (mAppContext->textRepository->getByHash(static_cast<int>(mHash))) {
     mResultsText->setText("This text has already been added.");
     mResultsText->setStyleClass("alert alert-warning mt-3");
@@ -141,6 +159,11 @@ void InsertTextPage::submit() {
   }
   mResultsText->setText("");
   mResultsText->setStyleClass("");
+
+  // One transaction for all three tables: a single commit is much faster on
+  // the Pi's SD card than one per row, and a failure part-way leaves nothing
+  // half-saved.
+  db::Savepoint tx{mAppContext->dbHandler->getConnection(), "submit_text"};
 
   std::vector<db::models::Word> wordsToSave;
   for (const RowData row : mRows) {
@@ -155,6 +178,27 @@ void InsertTextPage::submit() {
   mAppContext->wordRepository->updateFrequencies(wordsToSave);
   mAppContext->textRepository->add(db::models::Text{
       mText, static_cast<int>(mHash), mAppContext->selectedLanguage, mSource});
+  tx.commit();
 
+  clear();
   Wt::WApplication::instance()->setInternalPath("/list", true);
+}
+
+void InsertTextPage::clear() {
+  textEdit_->setText("");
+  mSourceTextArea->setText("");
+  resetHeight(textEdit_);
+  resetHeight(mSourceTextArea);
+
+  mWordTable->clear();
+  mWordTable->hide();
+  mSubmitButton->hide();
+  mResultsText->setText("");
+  mResultsText->setStyleClass("");
+
+  mRows.clear();
+  mWordCounts.clear();
+  mText.clear();
+  mSource.clear();
+  mHash = 0;
 }

@@ -382,7 +382,10 @@ TEST_F(PagesTest, SubmittingSameTextTwiceDoesNotThrowOrDoubleCount) {
   ASSERT_NE(list, nullptr);
   EXPECT_NE(findButton(list, "the"), nullptr);
 
+  // Adding the same text again is refused.
   app.setInternalPath("/insert", true);
+  textAreas[0]->setText("the cat and the dog");
+  processButton->clicked().emit(Wt::WMouseEvent());
   EXPECT_NO_THROW(submitButton->clicked().emit(Wt::WMouseEvent()));
   EXPECT_TRUE(containsText(page, "This text has already been added."));
 
@@ -391,6 +394,65 @@ TEST_F(PagesTest, SubmittingSameTextTwiceDoesNotThrowOrDoubleCount) {
   auto the = words.getByText(L"the", utils::Language::English);
   ASSERT_TRUE(the.has_value());
   EXPECT_EQ(the->numOccurrences, 2);
+}
+
+// The buttons are disabled in the browser on click (see InsertTextPage);
+// the handlers must enable them again on every path.
+TEST_F(PagesTest, ProcessAndSubmitReenableTheirButtons) {
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/insert", true);
+
+  auto *page = findOne<InsertTextPage>(app.root());
+  ASSERT_NE(page, nullptr);
+  findAll<Wt::WTextArea>(page)[0]->setText("the cat");
+  auto *processButton = findButton(page, "Process");
+  auto *submitButton = findButton(page, "Submit");
+
+  processButton->disable();
+  processButton->clicked().emit(Wt::WMouseEvent());
+  EXPECT_TRUE(processButton->isEnabled());
+
+  submitButton->disable();
+  submitButton->clicked().emit(Wt::WMouseEvent());
+  EXPECT_TRUE(submitButton->isEnabled());
+
+  // Duplicate submit returns early; the button must still come back.
+  app.setInternalPath("/insert", true);
+  findAll<Wt::WTextArea>(page)[0]->setText("the cat");
+  processButton->clicked().emit(Wt::WMouseEvent());
+  submitButton->disable();
+  submitButton->clicked().emit(Wt::WMouseEvent());
+  EXPECT_TRUE(containsText(page, "This text has already been added."));
+  EXPECT_TRUE(submitButton->isEnabled());
+}
+
+TEST_F(PagesTest, SubmittingClearsInsertPage) {
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/insert", true);
+
+  auto *page = findOne<InsertTextPage>(app.root());
+  ASSERT_NE(page, nullptr);
+  auto textAreas = findAll<Wt::WTextArea>(page);
+  textAreas[0]->setText("the cat");
+  textAreas[1]->setText("a source");
+  findButton(page, "Process")->clicked().emit(Wt::WMouseEvent());
+  auto *submitButton = findButton(page, "Submit");
+  submitButton->clicked().emit(Wt::WMouseEvent());
+  ASSERT_EQ(app.internalPath(), "/list");
+
+  app.setInternalPath("/insert", true);
+  EXPECT_TRUE(textAreas[0]->text().empty());
+  EXPECT_TRUE(textAreas[1]->text().empty());
+  EXPECT_TRUE(findOne<Wt::WTable>(page)->isHidden());
+  EXPECT_TRUE(submitButton->isHidden());
+
+  // A stray Submit on the cleared page saves nothing.
+  submitButton->clicked().emit(Wt::WMouseEvent());
+  db::DatabaseHandler dbHandler;
+  db::TextRepository texts{dbHandler.getConnection()};
+  EXPECT_EQ(texts.getAll(utils::Language::English).size(), 1u);
 }
 
 TEST_F(PagesTest, SidebarViewSourceListsAllSourcesWithoutHighlight) {

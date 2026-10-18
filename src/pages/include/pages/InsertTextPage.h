@@ -22,10 +22,13 @@ private:
   };
   void process();
   void submit();
+  // Resets the page to its initial state, ready for the next text.
+  void clear();
   Wt::WTextArea *textEdit_;
   Wt::WTextArea *mSourceTextArea;
   Wt::WText *mResultsText;
   Wt::WTable *mWordTable;
+  Wt::WPushButton *mProcessButton;
   Wt::WPushButton *mSubmitButton;
   std::unordered_map<std::wstring, int> mWordCounts;
   std::unique_ptr<processor::TextProcessor> mTextProcessor;

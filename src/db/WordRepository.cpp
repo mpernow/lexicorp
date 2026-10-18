@@ -1,9 +1,9 @@
 #include "db/WordRepository.h"
+#include "db/Savepoint.h"
 #include "db/Utils.h"
 #include "sqlite/command.hpp"
 #include "sqlite/execute.hpp"
 #include "sqlite/query.hpp"
-#include "sqlite/transaction.hpp"
 #include "utils/Language.h"
 
 namespace db {
@@ -81,7 +81,9 @@ void WordRepository::updateFrequencies(
     const std::unordered_map<std::wstring, int> &frequencies,
     const utils::Language &language) {
 
-  auto tx = sqlite::transaction{mDbConn};
+  // A savepoint rather than BEGIN, so callers can wrap this in their own
+  // transaction (see InsertTextPage::submit()).
+  Savepoint tx{mDbConn, "update_frequencies"};
 
   for (const auto &[word, freq] : frequencies) {
     std::string utf8Word = Utils::toUtf8(word);
@@ -104,7 +106,9 @@ void WordRepository::updateFrequencies(
 
 void WordRepository::updateFrequencies(const std::vector<models::Word> &words) {
 
-  auto tx = sqlite::transaction{mDbConn};
+  // A savepoint rather than BEGIN, so callers can wrap this in their own
+  // transaction (see InsertTextPage::submit()).
+  Savepoint tx{mDbConn, "update_frequencies"};
 
   for (const auto &word : words) {
     std::string utf8Word = Utils::toUtf8(word.word);

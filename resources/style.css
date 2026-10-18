@@ -161,6 +161,37 @@ body {
   box-shadow: var(--bs-box-shadow);
 }
 
+/* Buttons that start slow server work are disabled on click (see
+   InsertTextPage); show a spinner while they wait. */
+.busy-button:disabled::before {
+  content: "";
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 0.5em;
+  vertical-align: -0.125em;
+  border: 0.15em solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spinner-border 0.75s linear infinite; /* Bootstrap's keyframes */
+}
+
+/* Wt's "Loading..." box, shown while waiting for the server, is a red label
+   in the top-right corner by default. Show a thin bar along the top instead. */
+body div > div.Wt-loading {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  padding: 0;
+  overflow: hidden;
+  font-size: 0;
+  color: transparent;
+  background: var(--bs-primary);
+  z-index: 2000;
+}
+
 .highlight-word {
   color: var(--bs-primary-text-emphasis);
   font-weight: bold;
