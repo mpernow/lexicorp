@@ -43,8 +43,15 @@ ctest --preset debug -R WordRepositoryTests        # one suite / regex match
 ctest --preset debug -N                            # list test names
 ```
 
-Individual test executables are built under `build/debug/bin/` (e.g.
-`word_repository_test`) and accept the usual `--gtest_filter=...`.
+Individual test executables are built next to their library, under
+`build/debug/src/<lib>/` (e.g. `build/debug/src/db/word_repository_test`), and
+accept the usual `--gtest_filter=...`.
+
+`pages_test` drives whole sessions with `Wt::Test::WTestEnvironment`; each
+test runs in its own temp directory because `AppContext` opens `lexiCorp.db`
+in the working directory. `WTestEnvironment` can't see cookies the app sets
+(only ones passed in with `setCookies`). The `addMetaHeader() with no effect`
+warnings in its output come from Wt's Bootstrap 5 theme and are expected.
 
 ## Dependencies
 
@@ -75,18 +82,18 @@ headers in `src/<lib>/include/<lib>/`.
 
 - **processor** — `TextProcessor`: ICU-based pipeline of NFKC normalization →
   strip punctuation/symbols/control chars (keeping apostrophes) → case-fold →
-  word-boundary segmentation, producing a `word -> count` map. Also
+  word-boundary segmentation, producing a `word -> count` map. Behaviour pinned
+  by tests: digit tokens count as words, internal apostrophes are kept, hyphens
+  are stripped before segmentation (so `well-known` becomes one word). Also
   `hashWstring`, a SHA-256 (OpenSSL) digest truncated to `uint64_t`, used to
   identify a text.
 
 - **pages** — one `Wt::WContainerWidget` subclass per screen.
   `LexiCorpMain` (`Wt::WApplication`) builds the shell: a sidebar with a
   language `WComboBox` and a `WMenu` bound to a `WStackedWidget`, using
-  internal-path routing (menu base path `/`). The shell is plain flexbox, not
-  a Wt layout manager, so `style.css` can turn the sidebar into a top bar
-  below 768px; the stack's overflow is set visible so `position: sticky`
-  works. `<head>` tags (viewport, manifest, icons) are added from JavaScript
-  in `addHeadTags()`, because Wt's bootstrap page ignores `addMetaHeader()`. Routes: `""` → `HomePage` (stats overview),
+  internal-path routing. The shell is plain flexbox, not a Wt layout
+  manager, so `style.css` can turn the sidebar into a top bar below 768px.
+  Routes: `""` → `HomePage` (stats overview),
   `/insert` → `InsertTextPage`, `/list` → `DisplayWordsPage`, `/source` →
   `ViewSourcePage` (all texts) and `/source/word` (texts containing
   `selectedWord`, highlighted).
@@ -99,6 +106,18 @@ headers in `src/<lib>/include/<lib>/`.
   `selectedWord`, and `Wt::Signal`s (`languageChanged`, `wordSelected`) that
   pages connect to in order to react to state changed elsewhere. Navigation
   between pages is done with `WApplication::instance()->setInternalPath(...)`.
+
+- **Pages are built once, at startup.** Every page is constructed when the
+  session starts, so a page must refresh its data itself: connect to
+  `languageChanged`, and to `internalPathChanged` for its own route(s) (see
+  `DisplayWordsPage`, `ViewSourcePage`, `HomePage`). Rendering differs by
+  path where needed, e.g. `ViewSourcePage` shows all texts on `/source` and
+  only the selected word's texts on `/source/word`.
+
+- **Per-browser preferences** live in one-year cookies read when the session
+  starts: `language` and `theme` (`dark` / `light`; without it the browser's
+  `prefers-color-scheme` is used). Dark mode is Bootstrap's `data-bs-theme`
+  on `<html>`, so CSS should use `--bs-*` variables, not fixed colours.
 
 - **Text encoding**: text is held in memory as `std::wstring` of Unicode
   code points (UTF-32) and converted to/from UTF-8 only at the SQLite boundary
@@ -132,6 +151,31 @@ self-contained (our libs and vsqlite++ linked statically — see
 `BUILD_SHARED_LIBS` in the top-level `CMakeLists.txt`) since it is copied
 out of the build tree.
 
+## Wt quirks
+
+Each of these caused a real bug; the workaround lives in `LexiCorpMain.cpp`
+unless noted.
+
+- `WMenu::setInternalPathEnabled()` without an argument uses the internal path
+  the session *started* on as its base path, so reloading on `/list` broke
+  routing. Always pass `"/"`.
+- `WMenu` doesn't mark the item selected at first render as active;
+  `markActive` syncs Bootstrap's `active` class on `itemSelected`.
+- With the default JavaScript bootstrap, `addMetaHeader()` / `addMetaLink()`
+  never reach the browser. `<head>` tags (viewport, manifest, icons) are added
+  from JavaScript in `addHeadTags()`.
+- `WStackedWidget` sets `overflow: hidden` inline, which breaks
+  `position: sticky` in the pages (table headers, Submit button); the stack is
+  set to `Overflow::Visible`. Don't wrap sticky content in an `overflow: auto`
+  container either.
+- Wt layout managers (`WHBoxLayout` etc.) size widgets with inline styles that
+  CSS media queries can't override, hence the plain-flexbox shell.
+- `--docroot` without a static-path list (`"<dir>;/resources"`) makes Wt fall
+  back to `/?_=/path` URLs and serves every file in the docroot.
+- `WText` with `TextFormat::XHTML` normalises entities (`&#39;` comes back as
+  `'`). `highlightWithBreakIterator` in `ViewSourcePage.cpp` does the escaping
+  itself, so pass it raw text; escaping first double-escapes.
+
 ## Notes
 
 - Do not run `git commit` yourself. Leave staging and committing to the
@@ -145,5 +189,9 @@ out of the build tree.
   `unicode-range` in `resources/style.css`. To regenerate or widen the subset,
   run `python3 -m fontTools.subset` on the source TTF with
   `--layout-features='*' --flavor=woff2` and the same `--unicodes` ranges.
+- `resources/manifest.json` + `resources/icons/` make the app installable
+  ("Add to Home Screen"). The icons are a white "L" on Bootstrap blue
+  `#0d6efd`, generated with Pillow; that colour is also the `theme-color` in
+  `addHeadTags()`.
 - No committed `.clang-format`; existing code follows LLVM style (2-space
   indent, 80 columns).
