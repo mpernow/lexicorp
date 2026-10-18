@@ -200,8 +200,10 @@ body div > div.Wt-loading {
   padding: 0 2px;
 }
 
-/* Narrow screens; kept last so it overrides the rules above. */
-@media (max-width: 767.98px) {
+/* Portrait screens (phones, upright tablets) get a top bar; landscape screens
+   keep the sidebar unless they are very narrow. Kept last so it overrides the
+   rules above. */
+@media (orientation: portrait), (max-width: 575.98px) {
   .app-shell {
     flex-direction: column;
   }

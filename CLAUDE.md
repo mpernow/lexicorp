@@ -97,7 +97,8 @@ headers in `src/<lib>/include/<lib>/`.
   `LexiCorpMain` (`Wt::WApplication`) builds the shell: a sidebar with a
   language `WComboBox` and a `WMenu` bound to a `WStackedWidget`, using
   internal-path routing. The shell is plain flexbox, not a Wt layout
-  manager, so `style.css` can turn the sidebar into a top bar below 768px.
+  manager, so `style.css` can turn the sidebar into a top bar on portrait
+  screens (and landscape ones narrower than 576px).
   Routes: `""` → `HomePage` (stats overview),
   `/insert` → `InsertTextPage`, `/list` → `DisplayWordsPage`, `/source` →
   `ViewSourcePage` (all texts) and `/source/word` (texts containing
