@@ -90,8 +90,10 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   auto menu = std::make_unique<Wt::WMenu>(stack);
   menu->setStyleClass("nav nav-pills flex-column gap-1");
 
-  // Enable URL routing
-  menu->setInternalPathEnabled();
+  // Enable URL routing. The base path must be explicit: the default is the
+  // internal path at startup, so opening the app on e.g. /list would make
+  // the menu ignore every path outside /list/.
+  menu->setInternalPathEnabled("/");
 
   // --- Menu items with URL paths ---
   menu->addItem("Home", std::make_unique<HomePage>(mAppContext))

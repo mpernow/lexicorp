@@ -460,6 +460,28 @@ TEST_F(PagesTest, SidebarViewSourceAfterWordSelectionShowsAllSources) {
   EXPECT_FALSE(anyTextContains(page, "highlight-word"));
 }
 
+// Reloading the browser on a page starts the session on that path; routing
+// must still work from there (the menu's base path once came from it).
+TEST_F(PagesTest, ViewSourceButtonWorksWhenSessionStartsOnWordList) {
+  addText(L"cat sat here", 1, L"first-source", utils::Language::English);
+  addWord(L"cat", utils::Language::English);
+
+  Wt::Test::WTestEnvironment env;
+  env.setInternalPath("/list");
+  LexiCorpMain app{env};
+
+  auto *menu = findOne<Wt::WMenu>(app.root());
+  ASSERT_NE(menu, nullptr);
+  EXPECT_EQ(menu->currentItem()->text(), "Word List");
+
+  auto *list = findOne<DisplayWordsPage>(app.root());
+  ASSERT_NE(list, nullptr);
+  findButton(list, "View source")->clicked().emit(Wt::WMouseEvent());
+
+  EXPECT_EQ(app.internalPath(), "/source/word");
+  EXPECT_EQ(menu->currentItem()->text(), "View source");
+}
+
 TEST_F(PagesTest, ViewSourceDoesNotDoubleEscape) {
   addText(L"l'homme & <la> femme", 1, L"src", utils::Language::French);
 
