@@ -30,11 +30,12 @@ private:
   Wt::WTable *mWordTable;
   Wt::WPushButton *mProcessButton;
   Wt::WPushButton *mSubmitButton;
+  std::vector<processor::Sentence> mSentences;
   std::unordered_map<std::wstring, int> mWordCounts;
   std::unique_ptr<processor::TextProcessor> mTextProcessor;
   std::shared_ptr<AppContext> mAppContext;
   std::vector<RowData> mRows;
   std::wstring mText;
   std::wstring mSource;
-  uint64_t mHash;
+  std::int64_t mHash;
 };

@@ -1,13 +1,14 @@
 #pragma once
 
 #include "utils/Language.h"
+#include <cstdint>
 #include <string>
 #include <vector>
 
 namespace db::models {
 struct Text {
   std::wstring text;
-  int hash = 0;
+  std::int64_t hash = 0;
   utils::Language language = utils::Language::Unknown;
   std::wstring source;
 

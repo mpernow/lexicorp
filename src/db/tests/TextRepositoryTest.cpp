@@ -129,3 +129,20 @@ TEST(TextRepositoryTests, RemoveTextTest) {
   EXPECT_FALSE(textRepository.getByHash(1).has_value());
   EXPECT_TRUE(textRepository.getByHash(2).has_value());
 }
+
+TEST(TextRepositoryTests, KeepsFull64BitHash) {
+  auto dbHandler = db::DatabaseHandler{":memory:"};
+  auto textRepository = db::TextRepository{dbHandler.getConnection()};
+  const std::int64_t big = 0x7123456789ABCDEF;
+  const std::int64_t negative = -0x7123456789ABCDEF;
+
+  textRepository.add(db::models::Text{L"a", big, utils::Language::English});
+  textRepository.add(
+      db::models::Text{L"b", negative, utils::Language::English});
+
+  ASSERT_TRUE(textRepository.getByHash(big).has_value());
+  EXPECT_EQ(textRepository.getByHash(big)->text, L"a");
+  EXPECT_EQ(textRepository.getByHash(negative)->text, L"b");
+  EXPECT_FALSE(
+      textRepository.getByHash(static_cast<std::int32_t>(big)).has_value());
+}

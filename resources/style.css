@@ -122,8 +122,20 @@ body {
   font-size: 15px;
 }
 
+/* One matching sentence per line on /source/word. */
+.source-sentence {
+  line-height: 1.6;
+  font-size: 15px;
+}
+.source-sentence + .source-sentence {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: var(--bs-border-width) dashed var(--bs-border-color);
+}
+
 /* Naskh's tall ascenders and deep descenders need more room between lines. */
-.source-text:dir(rtl) {
+.source-text:dir(rtl),
+.source-sentence:dir(rtl) {
   line-height: 2.1;
 }
 
@@ -216,6 +228,19 @@ body div > div.Wt-loading {
   background: var(--bs-primary-bg-subtle);
   border-radius: 3px;
   padding: 0 2px;
+}
+
+/* In the full text: the sentences containing the word, with the word itself
+   highlighted more strongly. */
+.highlight-sentence {
+  background: var(--bs-primary-bg-subtle);
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.highlight-sentence .highlight-word {
+  color: var(--bs-white);
+  background: var(--bs-primary);
 }
 
 /* Portrait screens (phones, upright tablets) get a top bar; landscape screens

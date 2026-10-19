@@ -72,10 +72,12 @@ headers in `src/<lib>/include/<lib>/`.
   persisted as their string name, never as the enum ordinal.
 
 - **db** — persistence. `DatabaseHandler` owns one `sqlite::connection`.
-  Three repositories (`WordRepository`, `TextRepository`, `WordTextRepository`,
-  each behind an `I*Repository` interface) take that connection by reference and
+  Five repositories (`WordRepository`, `TextRepository`, `WordTextRepository`,
+  `SentenceRepository`, `WordSentenceRepository`, each behind an
+  `I*Repository` interface) take that connection by reference and
   **create their own table in the constructor**. Model structs live in
-  `db/*.h` (`models::Word`, `models::Text`, `models::WordText`); each satisfies
+  `db/*.h` (`models::Word`, `models::Text`, `models::WordText`,
+  `models::Sentence`, `models::WordSentence`); each satisfies
   the `db::Utils::IsDbModel` concept by exposing `static tableName` and
   `static schema()`, and `Utils::createTableSql<T>()` turns that into a
   `CREATE TABLE IF NOT EXISTS`. For transactions use `db::Savepoint`
@@ -85,7 +87,13 @@ headers in `src/<lib>/include/<lib>/`.
   separate commit waits for the disk, which takes seconds per few hundred rows
   on the Pi's SD card.
 
-- **processor** — `TextProcessor`: ICU-based pipeline of NFKC normalization →
+- **processor** — `TextProcessor`: `extractSentences` splits the raw text into
+  sentences (ICU sentence iterator; every line break ends a sentence, and
+  `@ss=standard` keeps "Mr." etc. inside one), keeping each sentence's
+  position in code points, then runs the word pipeline on each sentence;
+  `computeFrequencies` is the sum over sentences. The ICU locale comes from
+  the language (`TextProcessor::locale`), never the server default. Word
+  pipeline: NFKC normalization →
   per-language letter normalization (`normalizeLetters`; Kurdish only, via
   ICU transliterator rules: ك→ک, ي/ى→ی, ھ→ه, ه+ZWNJ/ة→ە, but not word-final
   ه, which can be a real /h/; `ViewSourcePage` applies it when highlighting) →
@@ -94,7 +102,7 @@ headers in `src/<lib>/include/<lib>/`.
   by tests: digit tokens count as words, internal apostrophes are kept, hyphens
   are stripped before segmentation (so `well-known` becomes one word). Also
   `hashWstring`, a SHA-256 (OpenSSL) digest truncated to `uint64_t`, used to
-  identify a text.
+  identify a text; stored as `std::int64_t` (the same bits).
 
 - **pages** — one `Wt::WContainerWidget` subclass per screen.
   `LexiCorpMain` (`Wt::WApplication`) builds the shell: a sidebar with a
@@ -104,8 +112,9 @@ headers in `src/<lib>/include/<lib>/`.
   screens (and landscape ones narrower than 576px).
   Routes: `""` → `HomePage` (stats overview),
   `/insert` → `InsertTextPage`, `/list` → `DisplayWordsPage`, `/source` →
-  `ViewSourcePage` (all texts) and `/source/word` (texts containing
-  `selectedWord`, highlighted).
+  `ViewSourcePage` (all texts) and `/source/word` (the sentences containing
+  `selectedWord`, grouped by text, with a per-text "Show full text" toggle
+  that marks those sentences in the whole text).
 
 ### Cross-cutting conventions
 
@@ -121,7 +130,7 @@ headers in `src/<lib>/include/<lib>/`.
   `languageChanged`, and to `internalPathChanged` for its own route(s) (see
   `DisplayWordsPage`, `ViewSourcePage`, `HomePage`). Rendering differs by
   path where needed, e.g. `ViewSourcePage` shows all texts on `/source` and
-  only the selected word's texts on `/source/word`.
+  only the selected word's sentences on `/source/word`.
 
 - **Per-browser preferences** live in one-year cookies read when the session
   starts: `language` and `theme` (`dark` / `light`; without it the browser's
@@ -138,9 +147,17 @@ headers in `src/<lib>/include/<lib>/`.
 - **Destructive actions** go through `confirmDestructive()`
   (`pages/ConfirmDialog.h`), a `WMessageBox` with Cancel and a red confirm
   button. In `pages_test` the open box is found under `app.domRoot()`, not
-  `app.root()`. Deleting a word removes its `words` and `word_text` rows;
-  deleting a text also subtracts its per-text counts from `words`, dropping
+  `app.root()`. Deleting a word removes its `words`, `word_text` and
+  `word_sentence` rows (sentences stay); deleting a text removes its rows in
+  every table and subtracts its per-text counts from `words`, dropping
   unknown words that reach zero (known ones stay, with count 0).
+
+- **Migrations**: `migrateDatabase()` (`pages/Migration.h`) brings the
+  database to `kDatabaseVersion`, tracked in SQLite's `PRAGMA user_version`,
+  in one transaction. `main()` runs it before `WRun`, since it isn't safe
+  with concurrent sessions. A schema or data change that existing databases
+  need gets a new `migrateToVersionN` step. Version 1 rehashed texts to 64
+  bits and generated sentences for existing texts.
 
 - **Text encoding**: text is held in memory as `std::wstring` of Unicode
   code points (UTF-32) and converted to/from UTF-8 only at the SQLite boundary
@@ -151,16 +168,23 @@ headers in `src/<lib>/include/<lib>/`.
 
 - `words` — PRIMARY KEY `(word, language)`; `numOccurrences`, `known`.
   Frequency updates are upserts that add to the existing count.
-- `text` — full source text, `hash` (the truncated SHA-256) as PRIMARY KEY,
+- `text` — full source text (the source of truth: everything else can be
+  regenerated from it), `hash` (64 bits of the SHA-256) as PRIMARY KEY,
   `language`, `source` label.
 - `word_text` — join table, PRIMARY KEY `(word, text_hash)`, per-text
-  occurrence count. Powers `ViewSourcePage`, which shows every stored text
-  containing a word with that word highlighted.
+  occurrence count. Used for word counts when deleting a text.
+- `sentence` — PRIMARY KEY `(text_hash, ordinal)`; the trimmed sentence and
+  its `start` / `length` in the text, in code points.
+- `word_sentence` — PRIMARY KEY `(word, language, text_hash, ordinal)`,
+  per-sentence occurrence count; indexed on `text_hash`. Powers
+  `/source/word`. Only words saved with the text are linked.
 
-The typical flow: `InsertTextPage` runs `TextProcessor`, lets the user pick
-which words to keep and mark as known, then writes rows to all three tables;
-`DisplayWordsPage` lists/sorts/filters `words`; `ViewSourcePage` joins back
-through `word_text` to `text`.
+The typical flow: `InsertTextPage` runs `TextProcessor::extractSentences`,
+lets the user pick which words to keep and mark as known, then writes rows to
+all five tables in one transaction (sentences via `saveSentences()`,
+`pages/Sentences.h`, shared with the migration); `DisplayWordsPage`
+lists/sorts/filters `words`; `ViewSourcePage` joins `word_sentence` →
+`sentence` → `text`.
 
 ## Deployment (Raspberry Pi)
 
@@ -197,7 +221,9 @@ unless noted.
   back to `/?_=/path` URLs and serves every file in the docroot.
 - `WText` with `TextFormat::XHTML` normalises entities (`&#39;` comes back as
   `'`). `highlightWithBreakIterator` in `ViewSourcePage.cpp` does the escaping
-  itself, so pass it raw text; escaping first double-escapes.
+  itself, so pass it raw text; escaping first double-escapes. Sentence
+  positions are code points but `icu::UnicodeString` indexes UTF-16, so
+  convert with `moveIndex32` (see `highlightSentences`).
 
 ## Notes
 

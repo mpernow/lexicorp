@@ -116,9 +116,9 @@ TEST(WordTextRepositoryTests, GetByWordReturnsAllMatchingTexts) {
   auto french = wordTextRepository.getByWord(L"chat", utils::Language::French);
   ASSERT_EQ(french.size(), 2u);
 
-  std::vector<int> hashes{french[0].textHash, french[1].textHash};
+  std::vector<std::int64_t> hashes{french[0].textHash, french[1].textHash};
   std::sort(hashes.begin(), hashes.end());
-  EXPECT_EQ(hashes, (std::vector<int>{1, 2}));
+  EXPECT_EQ(hashes, (std::vector<std::int64_t>{1, 2}));
 }
 
 // getByHash with several words for the same text currently returns exactly one

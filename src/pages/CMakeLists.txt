@@ -4,6 +4,8 @@ add_library(pages
     LexiCorpMain.cpp
     DisplayWordsPage.cpp
     ViewSourcePage.cpp
+    Sentences.cpp
+    Migration.cpp
 )
 
 target_include_directories(pages

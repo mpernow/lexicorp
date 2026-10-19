@@ -174,6 +174,8 @@ void DisplayWordsPage::deleteWord(const std::wstring &word) {
   mAppContext->wordRepository->remove(word, mAppContext->selectedLanguage);
   mAppContext->wordTextRepository->removeByWord(word,
                                                 mAppContext->selectedLanguage);
+  mAppContext->wordSentenceRepository->removeByWord(
+      word, mAppContext->selectedLanguage);
   tx.commit();
 
   std::erase_if(mRows, [&word](const RowData &r) { return r.word == word; });

@@ -256,3 +256,75 @@ TEST(TextProcessorTests, KurdishLettersOnlyNormalizedForKurdish) {
                                  utils::Language::English);
   EXPECT_EQ(f.at(L"\u0643\u062A\u0628"), 1);
 }
+
+namespace {
+std::vector<std::wstring> sentenceTexts(const std::wstring &input,
+                                        utils::Language language) {
+  std::vector<std::wstring> texts;
+  for (const auto &s : processor::TextProcessor{}.extractSentences(input,
+                                                                   language))
+    texts.push_back(s.text);
+  return texts;
+}
+} // namespace
+
+TEST(TextProcessorTests, ExtractSentencesSplitsAndCountsWords) {
+  processor::TextProcessor tp;
+  auto sentences = tp.extractSentences(L"  The cat sat. The cat ran!  Why? ",
+                                       utils::Language::English);
+  ASSERT_EQ(sentences.size(), 3u);
+  EXPECT_EQ(sentences[0].text, L"The cat sat.");
+  EXPECT_EQ(sentences[1].text, L"The cat ran!");
+  EXPECT_EQ(sentences[2].text, L"Why?");
+  EXPECT_EQ(sentences[0].words.at(L"the"), 1);
+  EXPECT_EQ(sentences[1].words.at(L"ran"), 1);
+  EXPECT_FALSE(sentences[1].words.contains(L"sat"));
+}
+
+TEST(TextProcessorTests, ExtractSentencesGivesPositionsInInput) {
+  processor::TextProcessor tp;
+  // Positions are in code points; 𝒜 (U+1D49C) is two UTF-16 units.
+  const std::wstring input = L"𝒜 b.\n\n  Second one. ";
+  auto sentences = tp.extractSentences(input, utils::Language::English);
+  ASSERT_EQ(sentences.size(), 2u);
+  for (const auto &s : sentences)
+    EXPECT_EQ(input.substr(s.start, s.length), s.text);
+  EXPECT_EQ(sentences[1].start, 8);
+}
+
+TEST(TextProcessorTests, ExtractSentencesSkipsSentencesWithoutWords) {
+  // Trailing punctuation stays with its sentence ("Hi. ..."); a line of only
+  // punctuation is a sentence of its own, and is dropped.
+  EXPECT_EQ(sentenceTexts(L"Hi. ...\n* * *\n\nBye.", utils::Language::English),
+            (std::vector<std::wstring>{L"Hi. ...", L"Bye."}));
+}
+
+TEST(TextProcessorTests, ExtractSentencesKeepsAbbreviations) {
+  EXPECT_EQ(sentenceTexts(L"Mr. Smith left. He was tired.",
+                          utils::Language::English),
+            (std::vector<std::wstring>{L"Mr. Smith left.", L"He was tired."}));
+}
+
+TEST(TextProcessorTests, ExtractSentencesSplitsKurdishQuestionMarks) {
+  EXPECT_EQ(sentenceTexts(L"سڵاو، چۆنی؟ باشم، سوپاس.\nتۆ چۆنی؟",
+                          utils::Language::Kurdish),
+            (std::vector<std::wstring>{L"سڵاو، چۆنی؟", L"باشم، سوپاس.",
+                                       L"تۆ چۆنی؟"}));
+}
+
+TEST(TextProcessorTests, ExtractSentencesEndAtLineBreaks) {
+  EXPECT_EQ(sentenceTexts(L"A title\r\nThe first sentence. Second\nthird",
+                          utils::Language::English),
+            (std::vector<std::wstring>{L"A title", L"The first sentence.",
+                                       L"Second", L"third"}));
+}
+
+TEST(TextProcessorTests, ComputeFrequenciesSumsSentences) {
+  processor::TextProcessor tp;
+  const std::wstring text = L"The cat sat. The cat ran.\nA dog barked.";
+  auto f = tp.computeFrequencies(text, utils::Language::English);
+  EXPECT_EQ(f.at(L"the"), 2);
+  EXPECT_EQ(f.at(L"cat"), 2);
+  EXPECT_EQ(f.at(L"dog"), 1);
+  EXPECT_EQ(f.size(), 7u);
+}

@@ -12,13 +12,15 @@ public:
 
   void add(const models::WordText &wordText) override;
   std::optional<models::WordText>
-  getByHash(const int textHash, const utils::Language language) override;
+  getByHash(const std::int64_t textHash,
+            const utils::Language language) override;
   std::vector<models::WordText>
   getByWord(const std::wstring &word, const utils::Language language) override;
-  std::vector<models::WordText> getAllByHash(const int textHash) override;
+  std::vector<models::WordText>
+  getAllByHash(const std::int64_t textHash) override;
   void removeByWord(const std::wstring &word,
                     const utils::Language language) override;
-  void removeByHash(const int textHash) override;
+  void removeByHash(const std::int64_t textHash) override;
 
 private:
   sqlite::connection &mDbConn;

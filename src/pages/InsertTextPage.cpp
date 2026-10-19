@@ -9,6 +9,7 @@
 #include "db/Savepoint.h"
 #include "db/WordText.h"
 #include "pages/InsertTextPage.h"
+#include "pages/Sentences.h"
 
 namespace {
 // Grows the text area with its content (never below its `rows` height),
@@ -95,8 +96,9 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
 void InsertTextPage::process() {
   mProcessButton->enable();
   mText = textEdit_->text().value();
-  mWordCounts = mTextProcessor->computeFrequencies(
+  mSentences = mTextProcessor->extractSentences(
       mText, mAppContext->selectedLanguage);
+  mWordCounts = processor::TextProcessor::sumFrequencies(mSentences);
 
   mSource = mSourceTextArea->text().value();
 
@@ -157,7 +159,7 @@ void InsertTextPage::process() {
     row++;
   }
 
-  mHash = mTextProcessor->hashWstring(mText);
+  mHash = static_cast<std::int64_t>(mTextProcessor->hashWstring(mText));
 
   bool noWords = mRows.empty();
   mWordTable->setHidden(noWords);
@@ -170,7 +172,7 @@ void InsertTextPage::submit() {
   mSubmitButton->enable();
   if (mRows.empty())
     return; // nothing processed (e.g. the page was just cleared)
-  if (mAppContext->textRepository->getByHash(static_cast<int>(mHash))) {
+  if (mAppContext->textRepository->getByHash(mHash)) {
     mResultsText->setText("This text has already been added.");
     mResultsText->setStyleClass("alert alert-warning mt-3");
     return;
@@ -178,24 +180,28 @@ void InsertTextPage::submit() {
   mResultsText->setText("");
   mResultsText->setStyleClass("");
 
-  // One transaction for all three tables: a single commit is much faster on
+  // One transaction for all the tables: a single commit is much faster on
   // the Pi's SD card than one per row, and a failure part-way leaves nothing
   // half-saved.
   db::Savepoint tx{mAppContext->dbHandler->getConnection(), "submit_text"};
 
   std::vector<db::models::Word> wordsToSave;
+  std::unordered_set<std::wstring> includedWords;
   for (const RowData row : mRows) {
     if (row.include) {
+      includedWords.insert(row.word);
       wordsToSave.emplace_back(row.word, row.count, row.known,
                                mAppContext->selectedLanguage);
       mAppContext->wordTextRepository->add(
-          db::models::WordText{row.word, static_cast<int>(mHash), row.count,
+          db::models::WordText{row.word, mHash, row.count,
                                mAppContext->selectedLanguage});
     }
   }
   mAppContext->wordRepository->updateFrequencies(wordsToSave);
   mAppContext->textRepository->add(db::models::Text{
-      mText, static_cast<int>(mHash), mAppContext->selectedLanguage, mSource});
+      mText, mHash, mAppContext->selectedLanguage, mSource});
+  saveSentences(*mAppContext, mHash, mAppContext->selectedLanguage, mSentences,
+                includedWords);
   tx.commit();
 
   clear();
@@ -215,6 +221,7 @@ void InsertTextPage::clear() {
   mResultsText->setStyleClass("");
 
   mRows.clear();
+  mSentences.clear();
   mWordCounts.clear();
   mText.clear();
   mSource.clear();

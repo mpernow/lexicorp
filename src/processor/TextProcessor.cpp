@@ -30,12 +30,6 @@ TextProcessor::TextProcessor() {
   if (U_FAILURE(status))
     throw std::runtime_error("Failed to initialize ICU Normalizer2");
 
-  mWordIterator.reset(icu::BreakIterator::createWordInstance(
-      icu::Locale::getDefault(), status));
-
-  if (U_FAILURE(status) || !mWordIterator)
-    throw std::runtime_error("Failed to create ICU BreakIterator");
-
   // Hyphens are dropped, joining compounds ("well-known" -> "wellknown").
   // Other punctuation, symbols and control characters (incl. line breaks)
   // become spaces, so they still separate the words around them.
@@ -57,33 +51,91 @@ TextProcessor::TextProcessor() {
     throw std::runtime_error("Failed to create Kurdish letter transliterator");
 }
 
+icu::Locale TextProcessor::locale(utils::Language language) {
+  // ss=standard: don't end a sentence after common abbreviations ("Mr.").
+  switch (language) {
+  case utils::Language::English:
+    return icu::Locale("en@ss=standard");
+  case utils::Language::French:
+    return icu::Locale("fr@ss=standard");
+  case utils::Language::Kurdish:
+    return icu::Locale("ckb");
+  default:
+    return icu::Locale::getRoot();
+  }
+}
+
+std::vector<Sentence>
+TextProcessor::extractSentences(const std::wstring &input,
+                                utils::Language language) {
+  UErrorCode status = U_ZERO_ERROR;
+  icu::Locale loc = locale(language);
+  std::unique_ptr<icu::BreakIterator> sentenceIterator(
+      icu::BreakIterator::createSentenceInstance(loc, status));
+  std::unique_ptr<icu::BreakIterator> wordIterator(
+      icu::BreakIterator::createWordInstance(loc, status));
+  if (U_FAILURE(status) || !sentenceIterator || !wordIterator)
+    throw std::runtime_error("Failed to create ICU BreakIterator");
+
+  icu::UnicodeString text = toUnicode(input);
+  sentenceIterator->setText(text);
+
+  std::vector<Sentence> sentences;
+  int32_t start = sentenceIterator->first();
+  for (int32_t end = sentenceIterator->next(); end != icu::BreakIterator::DONE;
+       start = end, end = sentenceIterator->next()) {
+    int32_t first = start, last = end;
+    while (first < last && u_isUWhiteSpace(text.char32At(first)))
+      first = text.moveIndex32(first, 1);
+    while (last > first && u_isUWhiteSpace(text.char32At(last - 1)))
+      last = text.moveIndex32(last, -1);
+
+    icu::UnicodeString sentence = text.tempSubStringBetween(first, last);
+    auto words = countWords(sentence, language, *wordIterator);
+    if (words.empty())
+      continue;
+
+    sentences.push_back(Sentence{
+        .text = toWString(sentence),
+        .start = text.countChar32(0, first),
+        .length = sentence.countChar32(),
+        .words = std::move(words),
+    });
+  }
+  return sentences;
+}
+
 std::unordered_map<std::wstring, int>
 TextProcessor::computeFrequencies(const std::wstring &input,
                                   utils::Language language) {
-  std::vector<std::wstring> words;
+  return sumFrequencies(extractSentences(input, language));
+}
 
-  icu::UnicodeString text = toUnicode(input);
+std::unordered_map<std::wstring, int>
+TextProcessor::sumFrequencies(const std::vector<Sentence> &sentences) {
+  std::unordered_map<std::wstring, int> results;
+  for (const auto &sentence : sentences)
+    for (const auto &[word, count] : sentence.words)
+      results[word] += count;
+  return results;
+}
 
-  text = normalize(text, language);
-  text = foldCase(text);
+std::unordered_map<std::wstring, int>
+TextProcessor::countWords(const icu::UnicodeString &sentence,
+                          utils::Language language,
+                          icu::BreakIterator &wordIterator) {
+  icu::UnicodeString text = foldCase(normalize(sentence, language));
+  wordIterator.setText(text);
 
-  mWordIterator->setText(text);
-
-  int32_t start = mWordIterator->first();
-
-  for (int32_t end = mWordIterator->next(); end != icu::BreakIterator::DONE;
-       start = end, end = mWordIterator->next()) {
+  std::unordered_map<std::wstring, int> results;
+  int32_t start = wordIterator.first();
+  for (int32_t end = wordIterator.next(); end != icu::BreakIterator::DONE;
+       start = end, end = wordIterator.next()) {
     icu::UnicodeString token = text.tempSubStringBetween(start, end);
 
     if (isWord(token))
-      words.push_back(toWString(token));
+      results[toWString(token)]++;
   }
-  std::unordered_map<std::wstring, int> results;
-
-  for (const auto &t : words) {
-    results[t]++;
-  }
-
   return results;
 }
 

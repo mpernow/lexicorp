@@ -24,7 +24,8 @@ void TextRepository::add(const models::Text &text) {
   insert();
 }
 
-std::optional<models::Text> TextRepository::getByHash(const int hash) {
+std::optional<models::Text>
+TextRepository::getByHash(const std::int64_t hash) {
   sqlite::query q{mDbConn, "SELECT text, hash, language, source "
                            "FROM text WHERE hash = ? "
                            "LIMIT 1"};
@@ -34,7 +35,7 @@ std::optional<models::Text> TextRepository::getByHash(const int hash) {
   for (auto &row : q.each()) {
     return models::Text{
         .text = Utils::fromUtf8(row.get<std::string>(0)),
-        .hash = row.get<int>(1),
+        .hash = row.get<std::int64_t>(1),
         .language = utils::language_from_string(row.get<std::string>(2)),
         .source = Utils::fromUtf8(row.get<std::string>(3)),
     };
@@ -50,7 +51,7 @@ std::vector<models::Text> TextRepository::getAll() {
 
   while (res->next_row()) {
     text.emplace_back(models::Text{
-        Utils::fromUtf8(res->get<std::string>(0)), res->get<int>(1),
+        Utils::fromUtf8(res->get<std::string>(0)), res->get<std::int64_t>(1),
         utils::language_from_string(res->get<std::string>(2)),
         Utils::fromUtf8(res->get<std::string>(3))});
   }
@@ -69,7 +70,7 @@ TextRepository::getAll(const utils::Language &language) {
 
   while (res->next_row()) {
     text.emplace_back(models::Text{
-        Utils::fromUtf8(res->get<std::string>(0)), res->get<int>(1),
+        Utils::fromUtf8(res->get<std::string>(0)), res->get<std::int64_t>(1),
         utils::language_from_string(res->get<std::string>(2)),
         Utils::fromUtf8(res->get<std::string>(3))});
   }
@@ -77,7 +78,7 @@ TextRepository::getAll(const utils::Language &language) {
   return text;
 }
 
-void TextRepository::remove(const int hash) {
+void TextRepository::remove(const std::int64_t hash) {
   sqlite::command remove{mDbConn, "DELETE FROM text WHERE hash = ?"};
   remove % hash;
   remove();

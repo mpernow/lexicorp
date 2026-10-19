@@ -1,5 +1,6 @@
 #pragma once
 
+#include "db/Sentence.h"
 #include "db/Text.h"
 #include "pages/AppContext.h"
 #include "processor/TextProcessor.h"
@@ -18,12 +19,23 @@ private:
   void refresh();
   void showWordSources();
   void showAllSources();
+  struct SourceCard {
+    Wt::WContainerWidget *card;
+    Wt::WContainerWidget *header;
+  };
+  // A card for a text, its header showing the source and a Delete button.
+  SourceCard addSourceCard(const db::models::Text &text);
   void addSourceBlock(const db::models::Text &text,
                       const std::string &textHtml);
-  void confirmDelete(int hash, const std::string &source);
+  // The text's sentences containing the word, with a toggle to the full text
+  // (those sentences marked in it).
+  void addSentencesBlock(const db::models::Text &text,
+                         const std::vector<db::models::Sentence> &sentences,
+                         const std::string &utf8Word);
+  void confirmDelete(std::int64_t hash, const std::string &source);
   // Removes the text and its word links, and takes its occurrences off the
   // word counts.
-  void deleteText(int hash);
+  void deleteText(std::int64_t hash);
 
   std::shared_ptr<AppContext> mAppContext;
   processor::TextProcessor mTextProcessor;

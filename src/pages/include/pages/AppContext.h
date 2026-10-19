@@ -2,8 +2,10 @@
 #include <memory>
 
 #include "db/DatabaseHandler.h"
+#include "db/SentenceRepository.h"
 #include "db/TextRepository.h"
 #include "db/WordRepository.h"
+#include "db/WordSentenceRepository.h"
 #include "db/WordTextRepository.h"
 #include "utils/Language.h"
 #include <Wt/WSignal.h>
@@ -18,6 +20,10 @@ public:
         std::make_shared<db::TextRepository>(dbHandler->getConnection());
     wordTextRepository =
         std::make_shared<db::WordTextRepository>(dbHandler->getConnection());
+    sentenceRepository =
+        std::make_shared<db::SentenceRepository>(dbHandler->getConnection());
+    wordSentenceRepository = std::make_shared<db::WordSentenceRepository>(
+        dbHandler->getConnection());
   }
 
   // Matches the first entry of the sidebar language combo box.
@@ -30,4 +36,6 @@ public:
   std::shared_ptr<db::WordRepository> wordRepository;
   std::shared_ptr<db::TextRepository> textRepository;
   std::shared_ptr<db::WordTextRepository> wordTextRepository;
+  std::shared_ptr<db::SentenceRepository> sentenceRepository;
+  std::shared_ptr<db::WordSentenceRepository> wordSentenceRepository;
 };

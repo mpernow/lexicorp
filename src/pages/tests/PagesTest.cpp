@@ -8,6 +8,8 @@
 #include "pages/InsertTextPage.h"
 #include "pages/HomePage.h"
 #include "pages/LexiCorpMain.h"
+#include "pages/Migration.h"
+#include "pages/Sentences.h"
 #include "pages/ViewSourcePage.h"
 
 #include <Wt/Test/WTestEnvironment.h>
@@ -122,15 +124,21 @@ protected:
     words.add(db::models::Word{word, 1, false, language});
   }
 
-  void addText(const std::wstring &text, int hash, const std::wstring &source,
-               utils::Language language) {
-    db::DatabaseHandler dbHandler;
-    db::TextRepository texts{dbHandler.getConnection()};
-    db::WordTextRepository wordTexts{dbHandler.getConnection()};
-    texts.add(db::models::Text{text, hash, language, source});
-    // Only the first word is linked; enough for the "View source" tests.
-    std::wstring firstWord = text.substr(0, text.find(L' '));
-    wordTexts.add(db::models::WordText{firstWord, hash, 1, language});
+  // Stores a text and its sentences. Only `linkedWord` (default: the first
+  // word) is linked to it; enough for the "View source" tests.
+  void addText(const std::wstring &text, std::int64_t hash,
+               const std::wstring &source, utils::Language language,
+               std::wstring linkedWord = L"") {
+    if (linkedWord.empty())
+      linkedWord = text.substr(0, text.find(L' '));
+    AppContext appContext;
+    appContext.textRepository->add(
+        db::models::Text{text, hash, language, source});
+    appContext.wordTextRepository->add(
+        db::models::WordText{linkedWord, hash, 1, language});
+    saveSentences(appContext, hash, language,
+                  processor::TextProcessor{}.extractSentences(text, language),
+                  {linkedWord});
   }
 
   ViewSourcePage *viewSourcePage(Wt::WApplication &app) {
@@ -533,7 +541,7 @@ TEST_F(PagesTest, TappingWordHighlightsItInSources) {
   EXPECT_EQ(app.internalPath(), "/source/word");
   auto *page = viewSourcePage(app);
   ASSERT_NE(page, nullptr);
-  EXPECT_TRUE(containsText(page, "Sources containing \"cat\""));
+  EXPECT_TRUE(containsText(page, "Sentences containing \"cat\" (1)"));
   EXPECT_TRUE(containsText(page, "Source: first-source"));
   EXPECT_FALSE(containsText(page, "Source: second-source"));
   EXPECT_TRUE(anyTextContains(page, "<span class=\"highlight-word\">cat"));
@@ -736,15 +744,8 @@ TEST_F(PagesTest, DeletingTextAsksFirstAndLowersWordCounts) {
 TEST_F(PagesTest, HighlightMatchesKurdishLetterVariants) {
   const std::wstring arabicKaf = L"\u0643\u062A\u06CE\u0628";  // كتێب
   const std::wstring kurdishKaf = L"\u06A9\u062A\u06CE\u0628"; // کتێب
-  {
-    db::DatabaseHandler dbHandler;
-    db::TextRepository texts{dbHandler.getConnection()};
-    db::WordTextRepository wordTexts{dbHandler.getConnection()};
-    texts.add(db::models::Text{arabicKaf + L" \u0628\u0627\u0634\u06D5", 1,
-                               utils::Language::Kurdish, L"src"});
-    wordTexts.add(
-        db::models::WordText{kurdishKaf, 1, 1, utils::Language::Kurdish});
-  }
+  addText(arabicKaf + L" \u0628\u0627\u0634\u06D5", 1, L"src",
+          utils::Language::Kurdish, kurdishKaf);
   addWord(kurdishKaf, utils::Language::Kurdish);
 
   Wt::Test::WTestEnvironment env;
@@ -762,4 +763,167 @@ TEST_F(PagesTest, HighlightMatchesKurdishLetterVariants) {
   EXPECT_TRUE(anyTextContains(page, "<span class=\"highlight-word\">" +
                                         db::Utils::toUtf8(arabicKaf) +
                                         "</span>"));
+}
+
+TEST_F(PagesTest, SubmittingTextStoresSentencesForIncludedWords) {
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/insert", true);
+  auto *page = findOne<InsertTextPage>(app.root());
+  ASSERT_NE(page, nullptr);
+
+  findAll<Wt::WTextArea>(page)[0]->setText("The cat sat. A dog ran.");
+  findButton(page, "Process")->clicked().emit(Wt::WMouseEvent());
+
+  // Untick "dog" (row cells: word, count, include, known).
+  auto *table = findOne<Wt::WTable>(page);
+  for (int row = 1; row < table->rowCount(); ++row) {
+    if (containsText(table->elementAt(row, 0), "dog")) {
+      auto *include = findOne<Wt::WCheckBox>(table->elementAt(row, 2));
+      include->setChecked(false);
+      include->changed().emit();
+    }
+  }
+  findButton(page, "Submit")->clicked().emit(Wt::WMouseEvent());
+
+  AppContext appContext;
+  auto texts = appContext.textRepository->getAll(utils::Language::English);
+  ASSERT_EQ(texts.size(), 1u);
+  auto sentences = appContext.sentenceRepository->getByHash(texts[0].hash);
+  ASSERT_EQ(sentences.size(), 2u);
+  EXPECT_EQ(sentences[0].sentence, L"The cat sat.");
+  EXPECT_EQ(sentences[1].sentence, L"A dog ran.");
+  EXPECT_EQ(sentences[1].start, 13);
+
+  auto en = utils::Language::English;
+  EXPECT_EQ(appContext.sentenceRepository->getByWord(L"cat", en).size(), 1u);
+  EXPECT_EQ(appContext.sentenceRepository->getByWord(L"ran", en).size(), 1u);
+  EXPECT_TRUE(appContext.sentenceRepository->getByWord(L"dog", en).empty());
+}
+
+TEST_F(PagesTest, WordSourcesShowSentencesAndToggleFullText) {
+  addText(L"cat one. Nothing here. Cat two.", 1, L"b-source",
+          utils::Language::English, L"cat");
+  addText(L"A cat. More text.", 2, L"a-source", utils::Language::English,
+          L"cat");
+  addText(L"No match here.", 3, L"c-source", utils::Language::English, L"no");
+  addWord(L"cat", utils::Language::English);
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/list", true);
+  findButton(findOne<DisplayWordsPage>(app.root()), "cat")
+      ->clicked()
+      .emit(Wt::WMouseEvent());
+
+  auto *page = viewSourcePage(app);
+  ASSERT_NE(page, nullptr);
+  EXPECT_TRUE(containsText(page, "Sentences containing \"cat\" (3)"));
+  EXPECT_FALSE(containsText(page, "Source: c-source"));
+
+  // Cards are sorted by source; each lists only its matching sentences.
+  auto cards = findAll<Wt::WText>(page);
+  std::vector<std::string> sentences, sources;
+  for (auto *text : cards) {
+    if (text->hasStyleClass("source-sentence"))
+      sentences.push_back(text->text().toUTF8());
+    if (text->text().toUTF8().starts_with("Source: "))
+      sources.push_back(text->text().toUTF8());
+  }
+  EXPECT_EQ(sources,
+            (std::vector<std::string>{"Source: a-source", "Source: b-source"}));
+  ASSERT_EQ(sentences.size(), 3u);
+  EXPECT_EQ(sentences[0], "A <span class=\"highlight-word\">cat</span>.");
+  EXPECT_EQ(sentences[1], "<span class=\"highlight-word\">cat</span> one.");
+  EXPECT_FALSE(anyTextContains(page, "Nothing here"));
+
+  // Showing b-source's full text marks both matching sentences.
+  auto toggles = findAll<Wt::WPushButton>(page);
+  std::erase_if(toggles, [](auto *b) {
+    return b->text().toUTF8() != "Show full text";
+  });
+  ASSERT_EQ(toggles.size(), 2u);
+  toggles[1]->clicked().emit(Wt::WMouseEvent());
+  EXPECT_EQ(toggles[1]->text().toUTF8(), "Show sentences");
+  EXPECT_TRUE(anyTextContains(
+      page, "<span class=\"highlight-sentence\"><span "
+            "class=\"highlight-word\">cat</span> one.</span> Nothing here. "
+            "<span class=\"highlight-sentence\"><span "
+            "class=\"highlight-word\">Cat</span> two.</span>"));
+
+  toggles[1]->clicked().emit(Wt::WMouseEvent());
+  EXPECT_EQ(toggles[1]->text().toUTF8(), "Show full text");
+}
+
+TEST_F(PagesTest, DeletingRemovesSentences) {
+  addText(L"cat sat. Dog ran.", 1, L"first", utils::Language::English, L"cat");
+  addText(L"cat again.", 2, L"second", utils::Language::English, L"cat");
+  {
+    AppContext appContext;
+    appContext.wordSentenceRepository->add(
+        db::models::WordSentence{L"dog", utils::Language::English, 1, 1, 1});
+  }
+  addWord(L"cat", utils::Language::English);
+  auto en = utils::Language::English;
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+
+  // Deleting a word unlinks it from every sentence, keeping the sentences.
+  app.setInternalPath("/list", true);
+  auto *table = findOne<Wt::WTable>(findOne<DisplayWordsPage>(app.root()));
+  ASSERT_NE(findButton(table->elementAt(1, 0), "cat"), nullptr);
+  findOne<Wt::WPushButton>(table->elementAt(1, 3))
+      ->clicked()
+      .emit(Wt::WMouseEvent());
+  answerDialog(app, Wt::StandardButton::Yes);
+  {
+    AppContext appContext;
+    EXPECT_TRUE(appContext.sentenceRepository->getByWord(L"cat", en).empty());
+    EXPECT_EQ(appContext.sentenceRepository->getByHash(1).size(), 2u);
+    EXPECT_EQ(appContext.sentenceRepository->getByWord(L"dog", en).size(),
+              1u);
+  }
+
+  // Deleting a text removes its sentences and their links.
+  app.setInternalPath("/source", true);
+  findButton(viewSourcePage(app), "Delete")->clicked().emit(Wt::WMouseEvent());
+  answerDialog(app, Wt::StandardButton::Yes);
+
+  AppContext appContext;
+  EXPECT_TRUE(appContext.sentenceRepository->getByHash(1).empty());
+  EXPECT_TRUE(appContext.wordSentenceRepository->getByHash(1).empty());
+  EXPECT_EQ(appContext.sentenceRepository->getByHash(2).size(), 1u);
+}
+
+TEST_F(PagesTest, MigrationRehashesTextsAndAddsSentences) {
+  const std::wstring text = L"The cat sat. A dog ran.";
+  const auto fullHash =
+      static_cast<std::int64_t>(processor::TextProcessor{}.hashWstring(text));
+  const std::int64_t oldHash = static_cast<std::int32_t>(fullHash);
+  const auto en = utils::Language::English;
+  {
+    // A database from before version 1: 32-bit hashes, no sentences.
+    AppContext appContext;
+    appContext.textRepository->add(db::models::Text{text, oldHash, en, L"s"});
+    for (const auto *word : {L"the", L"cat", L"sat", L"a", L"ran"})
+      appContext.wordTextRepository->add(
+          db::models::WordText{word, oldHash, 1, en});
+  }
+
+  for (int run = 0; run < 2; ++run) { // the second run must change nothing
+    AppContext appContext;
+    migrateDatabase(appContext);
+
+    EXPECT_FALSE(appContext.textRepository->getByHash(oldHash).has_value());
+    EXPECT_TRUE(appContext.textRepository->getByHash(fullHash).has_value());
+    EXPECT_EQ(appContext.wordTextRepository->getAllByHash(fullHash).size(),
+              5u);
+    auto sentences = appContext.sentenceRepository->getByHash(fullHash);
+    ASSERT_EQ(sentences.size(), 2u);
+    EXPECT_EQ(sentences[1].sentence, L"A dog ran.");
+    // "dog" wasn't saved with the text, so it isn't linked.
+    EXPECT_EQ(appContext.sentenceRepository->getByWord(L"ran", en).size(), 1u);
+    EXPECT_TRUE(appContext.sentenceRepository->getByWord(L"dog", en).empty());
+  }
 }

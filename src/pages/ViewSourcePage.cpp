@@ -2,6 +2,7 @@
 #include "pages/ConfirmDialog.h"
 #include "pages/EmptyState.h"
 #include "db/Savepoint.h"
+#include "db/Sentence.h"
 #include "db/Text.h"
 #include "db/Utils.h"
 #include "db/WordText.h"
@@ -66,24 +67,21 @@ std::string htmlEscape(const std::string &input) {
   return out;
 }
 
-// `utf8Word` is a stored word, so tokens of the raw text get the same letter
-// normalisation before comparing.
-std::string highlightWithBreakIterator(const std::string &utf8Text,
+// Escaped HTML of `text`, with `utf8Word` (a stored word) highlighted. Tokens
+// of the text get the stored words' letter normalisation before comparing.
+std::string highlightWithBreakIterator(const icu::UnicodeString &text,
                                        const std::string &utf8Word,
                                        const processor::TextProcessor &letters,
                                        utils::Language language) {
   UErrorCode status = U_ZERO_ERROR;
 
-  icu::UnicodeString text = icu::UnicodeString::fromUTF8(utf8Text);
-
   icu::UnicodeString word = icu::UnicodeString::fromUTF8(utf8Word);
+  word.foldCase();
 
   std::unique_ptr<icu::BreakIterator> it(icu::BreakIterator::createWordInstance(
-      icu::Locale::getDefault(), status));
+      processor::TextProcessor::locale(language), status));
 
   it->setText(text);
-
-  word.foldCase();
 
   std::string result;
 
@@ -118,6 +116,43 @@ std::string highlightWithBreakIterator(const std::string &utf8Text,
   return result;
 }
 
+namespace {
+icu::UnicodeString toUnicode(const std::wstring &text) {
+  return icu::UnicodeString::fromUTF8(db::Utils::toUtf8(text));
+}
+
+// Escaped HTML of a whole text, with `sentences` (the text's, in order) marked
+// and `utf8Word` highlighted.
+std::string
+highlightSentences(const std::wstring &fullText,
+                   const std::vector<db::models::Sentence> &sentences,
+                   const std::string &utf8Word,
+                   const processor::TextProcessor &letters,
+                   utils::Language language) {
+  icu::UnicodeString text = toUnicode(fullText);
+  auto highlight = [&](int32_t from, int32_t to) {
+    return highlightWithBreakIterator(text.tempSubStringBetween(from, to),
+                                      utf8Word, letters, language);
+  };
+
+  std::string html;
+  int32_t done = 0;
+  for (const auto &sentence : sentences) {
+    // Positions are stored in code points; the text is indexed in UTF-16.
+    int32_t start = text.moveIndex32(0, sentence.start);
+    int32_t end = text.moveIndex32(start, sentence.length);
+    if (start < done)
+      continue;
+    html += highlight(done, start);
+    html += "<span class=\"highlight-sentence\">" + highlight(start, end) +
+            "</span>";
+    done = end;
+  }
+  html += highlight(done, text.length());
+  return html;
+}
+} // namespace
+
 void ViewSourcePage::refresh() {
   mTextsContainer->clear();
 
@@ -133,31 +168,41 @@ void ViewSourcePage::showWordSources() {
   const std::wstring &selectedWord = mAppContext->selectedWord;
   std::string utf8Word = db::Utils::toUtf8(selectedWord);
 
-  auto wordTextVec = mAppContext->wordTextRepository->getByWord(
+  auto sentences = mAppContext->sentenceRepository->getByWord(
       selectedWord, mAppContext->selectedLanguage);
-  std::sort(wordTextVec.begin(), wordTextVec.end(),
-            [](const db::models::WordText &wt1,
-               const db::models::WordText &wt2) {
-              return wt1.numOccurrences > wt2.numOccurrences;
-            });
 
-  mHeading->setText(Wt::WString::fromUTF8("Sources containing \"" + utf8Word +
-                                          "\""));
+  // Grouped by text; the sentences come ordered by text, then position.
+  std::vector<std::pair<db::models::Text, std::vector<db::models::Sentence>>>
+      groups;
+  int shown = 0;
+  for (const auto &sentence : sentences) {
+    if (groups.empty() || groups.back().first.hash != sentence.textHash) {
+      auto text = mAppContext->textRepository->getByHash(sentence.textHash);
+      if (!text)
+        continue;
+      groups.emplace_back(std::move(*text),
+                          std::vector<db::models::Sentence>{});
+    }
+    groups.back().second.push_back(sentence);
+    ++shown;
+  }
+  std::stable_sort(groups.begin(), groups.end(),
+                   [](const auto &a, const auto &b) {
+                     return a.first.source < b.first.source;
+                   });
+
+  mHeading->setText(Wt::WString::fromUTF8("Sentences containing \"" +
+                                          utf8Word + "\" (" +
+                                          std::to_string(shown) + ")"));
   mHeading->setTextFormat(Wt::TextFormat::Plain);
 
-  if (wordTextVec.empty()) {
+  if (groups.empty()) {
     mTextsContainer->addWidget(makeEmptyState(
-        "No stored text contains \"" + utf8Word + "\".", false));
+        "No stored sentence contains \"" + utf8Word + "\".", false));
   }
 
-  for (const db::models::WordText &wt : wordTextVec) {
-    // TODO: Handle case of std::optional being nullopt - it is an error
-    if (auto text = mAppContext->textRepository->getByHash(wt.textHash)) {
-      addSourceBlock(*text, highlightWithBreakIterator(
-                                db::Utils::toUtf8(text->text), utf8Word,
-                                mTextProcessor, mAppContext->selectedLanguage));
-    }
-  }
+  for (const auto &[text, textSentences] : groups)
+    addSentencesBlock(text, textSentences, utf8Word);
 }
 
 void ViewSourcePage::showAllSources() {
@@ -179,12 +224,12 @@ void ViewSourcePage::showAllSources() {
   }
 }
 
-void ViewSourcePage::addSourceBlock(const db::models::Text &text,
-                                    const std::string &textHtml) {
-  auto textBlock = mTextsContainer->addNew<Wt::WContainerWidget>();
-  textBlock->setStyleClass("card mb-3");
+ViewSourcePage::SourceCard
+ViewSourcePage::addSourceCard(const db::models::Text &text) {
+  auto card = mTextsContainer->addNew<Wt::WContainerWidget>();
+  card->setStyleClass("card mb-3");
 
-  auto header = textBlock->addNew<Wt::WContainerWidget>();
+  auto header = card->addNew<Wt::WContainerWidget>();
   header->setStyleClass("card-header d-flex align-items-center gap-2");
 
   std::string source =
@@ -203,14 +248,66 @@ void ViewSourcePage::addSourceBlock(const db::models::Text &text,
         confirmDelete(hash, source);
       });
 
-  auto textWidget = textBlock->addNew<Wt::WText>(
+  return {card, header};
+}
+
+void ViewSourcePage::addSourceBlock(const db::models::Text &text,
+                                    const std::string &textHtml) {
+  auto textWidget = addSourceCard(text).card->addNew<Wt::WText>(
       Wt::WString::fromUTF8(textHtml), Wt::TextFormat::XHTML);
   textWidget->setInline(false);
   textWidget->setStyleClass("card-body source-text");
   textWidget->setAttributeValue("dir", "auto");
 }
 
-void ViewSourcePage::confirmDelete(int hash, const std::string &source) {
+void ViewSourcePage::addSentencesBlock(
+    const db::models::Text &text,
+    const std::vector<db::models::Sentence> &sentences,
+    const std::string &utf8Word) {
+  auto [card, header] = addSourceCard(text);
+  utils::Language language = mAppContext->selectedLanguage;
+
+  auto sentenceList = card->addNew<Wt::WContainerWidget>();
+  sentenceList->setStyleClass("card-body");
+  for (const auto &sentence : sentences) {
+    auto sentenceWidget = sentenceList->addNew<Wt::WText>(
+        Wt::WString::fromUTF8(highlightWithBreakIterator(
+            toUnicode(sentence.sentence), utf8Word, mTextProcessor, language)),
+        Wt::TextFormat::XHTML);
+    sentenceWidget->setInline(false);
+    sentenceWidget->setStyleClass("source-sentence");
+    sentenceWidget->setAttributeValue("dir", "auto");
+  }
+
+  // Filled in when first shown.
+  auto fullText = card->addNew<Wt::WText>();
+  fullText->setTextFormat(Wt::TextFormat::XHTML);
+  fullText->setInline(false);
+  fullText->setStyleClass("card-body source-text");
+  fullText->setAttributeValue("dir", "auto");
+  fullText->hide();
+
+  // Between the source and the Delete button.
+  auto toggle = std::make_unique<Wt::WPushButton>("Show full text");
+  toggle->setStyleClass("btn-sm btn-outline-secondary flex-shrink-0");
+  Wt::WPushButton *togglePtr = toggle.get();
+  header->insertWidget(header->count() - 1, std::move(toggle));
+
+  togglePtr->clicked().connect([this, togglePtr, sentenceList, fullText,
+                                fullTextSource = text.text, sentences,
+                                utf8Word, language] {
+    bool showFull = fullText->isHidden();
+    if (showFull && fullText->text().empty())
+      fullText->setText(Wt::WString::fromUTF8(highlightSentences(
+          fullTextSource, sentences, utf8Word, mTextProcessor, language)));
+    fullText->setHidden(!showFull);
+    sentenceList->setHidden(showFull);
+    togglePtr->setText(showFull ? "Show sentences" : "Show full text");
+  });
+}
+
+void ViewSourcePage::confirmDelete(std::int64_t hash,
+                                   const std::string &source) {
   confirmDestructive(
       this, "Delete text",
       (source.empty() ? "Delete this text?"
@@ -221,7 +318,7 @@ void ViewSourcePage::confirmDelete(int hash, const std::string &source) {
       "Delete", [this, hash] { deleteText(hash); });
 }
 
-void ViewSourcePage::deleteText(int hash) {
+void ViewSourcePage::deleteText(std::int64_t hash) {
   db::Savepoint tx{mAppContext->dbHandler->getConnection(), "delete_text"};
 
   std::vector<db::models::Word> occurrences;
@@ -229,6 +326,8 @@ void ViewSourcePage::deleteText(int hash) {
     occurrences.emplace_back(wt.word, wt.numOccurrences, false, wt.language);
   mAppContext->wordRepository->subtractFrequencies(occurrences);
   mAppContext->wordTextRepository->removeByHash(hash);
+  mAppContext->wordSentenceRepository->removeByHash(hash);
+  mAppContext->sentenceRepository->removeByHash(hash);
   mAppContext->textRepository->remove(hash);
   tx.commit();
 

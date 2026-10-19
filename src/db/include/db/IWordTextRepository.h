@@ -12,12 +12,13 @@ public:
 
   virtual void add(const models::WordText &wordText) = 0;
   virtual std::optional<models::WordText>
-  getByHash(const int hash, const utils::Language language) = 0;
+  getByHash(const std::int64_t hash, const utils::Language language) = 0;
   virtual std::vector<models::WordText>
   getByWord(const std::wstring &word, const utils::Language language) = 0;
-  virtual std::vector<models::WordText> getAllByHash(const int textHash) = 0;
+  virtual std::vector<models::WordText>
+  getAllByHash(const std::int64_t textHash) = 0;
   virtual void removeByWord(const std::wstring &word,
                             const utils::Language language) = 0;
-  virtual void removeByHash(const int textHash) = 0;
+  virtual void removeByHash(const std::int64_t textHash) = 0;
 };
 } // namespace db

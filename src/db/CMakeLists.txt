@@ -3,6 +3,8 @@ add_library(db
     WordRepository.cpp
     TextRepository.cpp
     WordTextRepository.cpp
+    SentenceRepository.cpp
+    WordSentenceRepository.cpp
 )
 
 include(FetchContent)
@@ -82,6 +84,15 @@ target_link_libraries(savepoint_test
     vsqlite::vsqlitepp
 )
 
+add_executable(sentence_repository_test
+    tests/SentenceRepositoryTest.cpp
+)
+target_link_libraries(sentence_repository_test
+    gtest_main
+    db
+    vsqlite::vsqlitepp
+)
+
 # Register tests
 include(GoogleTest)
 gtest_discover_tests(db_utils_test)
@@ -90,3 +101,4 @@ gtest_discover_tests(word_repository_test)
 gtest_discover_tests(text_repository_test)
 gtest_discover_tests(word_text_repository_test)
 gtest_discover_tests(savepoint_test)
+gtest_discover_tests(sentence_repository_test)

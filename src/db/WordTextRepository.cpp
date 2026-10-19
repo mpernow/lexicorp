@@ -27,7 +27,7 @@ void WordTextRepository::add(const models::WordText &wordText) {
 }
 
 std::optional<models::WordText>
-WordTextRepository::getByHash(const int textHash,
+WordTextRepository::getByHash(const std::int64_t textHash,
                               const utils::Language language) {
   sqlite::query q{mDbConn,
                   "SELECT word, text_hash, numOccurrences, language "
@@ -40,7 +40,7 @@ WordTextRepository::getByHash(const int textHash,
   for (auto &row : q.each()) {
     return models::WordText{
         .word = Utils::fromUtf8(row.get<std::string>(0)),
-        .textHash = row.get<int>(1),
+        .textHash = row.get<std::int64_t>(1),
         .numOccurrences = row.get<int>(2),
         .language = utils::language_from_string(row.get<std::string>(3)),
     };
@@ -62,7 +62,7 @@ WordTextRepository::getByWord(const std::wstring &word,
   for (auto &row : q.each()) {
     results.push_back(models::WordText{
         .word = Utils::fromUtf8(row.get<std::string>(0)),
-        .textHash = row.get<int>(1),
+        .textHash = row.get<std::int64_t>(1),
         .numOccurrences = row.get<int>(2),
         .language = utils::language_from_string(row.get<std::string>(3)),
     });
@@ -71,7 +71,7 @@ WordTextRepository::getByWord(const std::wstring &word,
 }
 
 std::vector<models::WordText>
-WordTextRepository::getAllByHash(const int textHash) {
+WordTextRepository::getAllByHash(const std::int64_t textHash) {
   sqlite::query q{mDbConn, "SELECT word, text_hash, numOccurrences, language "
                            "FROM word_text WHERE text_hash = ?"};
 
@@ -82,7 +82,7 @@ WordTextRepository::getAllByHash(const int textHash) {
   for (auto &row : q.each()) {
     results.push_back(models::WordText{
         .word = Utils::fromUtf8(row.get<std::string>(0)),
-        .textHash = row.get<int>(1),
+        .textHash = row.get<std::int64_t>(1),
         .numOccurrences = row.get<int>(2),
         .language = utils::language_from_string(row.get<std::string>(3)),
     });
@@ -98,7 +98,7 @@ void WordTextRepository::removeByWord(const std::wstring &word,
   remove();
 }
 
-void WordTextRepository::removeByHash(const int textHash) {
+void WordTextRepository::removeByHash(const std::int64_t textHash) {
   sqlite::command remove{mDbConn,
                          "DELETE FROM word_text WHERE text_hash = ?"};
   remove % textHash;
