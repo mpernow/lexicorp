@@ -4,6 +4,9 @@
 #include <Wt/WContainerWidget.h>
 #include <algorithm>
 
+#include "db/Savepoint.h"
+#include "db/Utils.h"
+#include "pages/ConfirmDialog.h"
 #include "pages/DisplayWordsPage.h"
 #include "pages/EmptyState.h"
 
@@ -142,8 +145,37 @@ void DisplayWordsPage::buildTable() {
     switchWrapper->addWidget(std::move(knownSwitch));
     mWordTable->elementAt(rowCount, 2)->addWidget(std::move(switchWrapper));
 
+    auto deleteButton = std::make_unique<Wt::WPushButton>("✕");
+    deleteButton->setStyleClass("btn-sm btn-outline-danger delete-button");
+    deleteButton->setToolTip("Delete word");
+    deleteButton->setAttributeValue("aria-label", "Delete word");
+    deleteButton->clicked().connect([this, word = r.word] {
+      confirmDelete(word);
+    });
+    mWordTable->elementAt(rowCount, 3)->addWidget(std::move(deleteButton));
+
     rowCount++;
   }
+}
+
+void DisplayWordsPage::confirmDelete(const std::wstring &word) {
+  std::string utf8Word = db::Utils::toUtf8(word);
+  confirmDestructive(
+      this, "Delete word",
+      "Delete \"" + utf8Word +
+          "\" from the word list? The texts it appears in are kept.",
+      "Delete", [this, word] { deleteWord(word); });
+}
+
+void DisplayWordsPage::deleteWord(const std::wstring &word) {
+  db::Savepoint tx{mAppContext->dbHandler->getConnection(), "delete_word"};
+  mAppContext->wordRepository->remove(word, mAppContext->selectedLanguage);
+  mAppContext->wordTextRepository->removeByWord(word,
+                                                mAppContext->selectedLanguage);
+  tx.commit();
+
+  std::erase_if(mRows, [&word](const RowData &r) { return r.word == word; });
+  rebuildRows();
 }
 
 void DisplayWordsPage::sortRows() {

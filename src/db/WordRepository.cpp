@@ -131,4 +131,37 @@ void WordRepository::updateFrequencies(const std::vector<models::Word> &words) {
   tx.commit();
 }
 
+void WordRepository::subtractFrequencies(
+    const std::vector<models::Word> &words) {
+  Savepoint tx{mDbConn, "subtract_frequencies"};
+
+  for (const auto &word : words) {
+    std::string utf8Word = Utils::toUtf8(word.word);
+    std::string language = utils::to_string(word.language);
+
+    sqlite::command subtract{
+        mDbConn, "UPDATE words "
+                 "SET numOccurrences = MAX(numOccurrences - ?, 0) "
+                 "WHERE word = ? AND language = ?"};
+    subtract % word.numOccurrences % utf8Word % language;
+    subtract();
+
+    sqlite::command removeUnused{
+        mDbConn, "DELETE FROM words WHERE word = ? AND language = ? "
+                 "AND numOccurrences = 0 AND known = 0"};
+    removeUnused % utf8Word % language;
+    removeUnused();
+  }
+
+  tx.commit();
+}
+
+void WordRepository::remove(const std::wstring &word,
+                            const utils::Language &language) {
+  sqlite::command remove{mDbConn,
+                         "DELETE FROM words WHERE word = ? AND language = ?"};
+  remove % Utils::toUtf8(word) % utils::to_string(language);
+  remove();
+}
+
 } // namespace db

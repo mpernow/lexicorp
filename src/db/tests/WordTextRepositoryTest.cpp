@@ -151,3 +151,41 @@ TEST(WordTextRepositoryTests, DuplicateInsertThrows) {
 
   EXPECT_THROW(wordTextRepository.add(wordText), sqlite::database_exception);
 }
+
+TEST(WordTextRepositoryTests, GetAndRemoveByHashTest) {
+  auto dbHandler = db::DatabaseHandler{":memory:"};
+  auto wordTextRepository = db::WordTextRepository{dbHandler.getConnection()};
+  const auto en = utils::Language::English;
+
+  wordTextRepository.add(db::models::WordText{L"cat", 1, 2, en});
+  wordTextRepository.add(db::models::WordText{L"sat", 1, 1, en});
+  wordTextRepository.add(db::models::WordText{L"cat", 2, 1, en});
+
+  EXPECT_EQ(wordTextRepository.getAllByHash(1).size(), 2u);
+
+  wordTextRepository.removeByHash(1);
+
+  EXPECT_TRUE(wordTextRepository.getAllByHash(1).empty());
+  EXPECT_EQ(wordTextRepository.getAllByHash(2).size(), 1u);
+}
+
+TEST(WordTextRepositoryTests, RemoveByWordTest) {
+  auto dbHandler = db::DatabaseHandler{":memory:"};
+  auto wordTextRepository = db::WordTextRepository{dbHandler.getConnection()};
+
+  wordTextRepository.add(
+      db::models::WordText{L"chat", 1, 1, utils::Language::English});
+  wordTextRepository.add(
+      db::models::WordText{L"sat", 1, 1, utils::Language::English});
+  wordTextRepository.add(
+      db::models::WordText{L"chat", 2, 1, utils::Language::French});
+
+  wordTextRepository.removeByWord(L"chat", utils::Language::English);
+
+  EXPECT_TRUE(
+      wordTextRepository.getByWord(L"chat", utils::Language::English).empty());
+  EXPECT_EQ(wordTextRepository.getAllByHash(1).size(), 1u);
+  EXPECT_EQ(
+      wordTextRepository.getByWord(L"chat", utils::Language::French).size(),
+      1u);
+}

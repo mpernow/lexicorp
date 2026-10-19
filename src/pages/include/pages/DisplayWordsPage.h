@@ -22,6 +22,8 @@ private:
   void buildTable();
   void sortRows();
   void rebuildRows();
+  void confirmDelete(const std::wstring &word);
+  void deleteWord(const std::wstring &word);
 
   Wt::WPushButton *mToggleButton;
   Wt::WTable *mWordTable;

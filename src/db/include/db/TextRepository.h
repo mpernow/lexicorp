@@ -14,6 +14,7 @@ public:
   std::optional<models::Text> getByHash(const int hash) override;
   std::vector<models::Text> getAll() override;
   std::vector<models::Text> getAll(const utils::Language &language) override;
+  void remove(const int hash) override;
 
 private:
   sqlite::connection &mDbConn;

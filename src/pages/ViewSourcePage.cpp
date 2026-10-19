@@ -1,10 +1,13 @@
 #include "pages/ViewSourcePage.h"
+#include "pages/ConfirmDialog.h"
 #include "pages/EmptyState.h"
+#include "db/Savepoint.h"
 #include "db/Text.h"
 #include "db/Utils.h"
 #include "db/WordText.h"
 #include <Wt/WApplication.h>
 #include <Wt/WBreak.h>
+#include <Wt/WPushButton.h>
 #include <Wt/WText.h>
 #include <algorithm>
 #include <unicode/brkiter.h>
@@ -175,17 +178,53 @@ void ViewSourcePage::addSourceBlock(const db::models::Text &text,
   auto textBlock = mTextsContainer->addNew<Wt::WContainerWidget>();
   textBlock->setStyleClass("card mb-3");
 
+  auto header = textBlock->addNew<Wt::WContainerWidget>();
+  header->setStyleClass("card-header d-flex align-items-center gap-2");
+
   std::string source =
       text.source.empty() ? "(no source)" : db::Utils::toUtf8(text.source);
-  auto sourceWidget = textBlock->addNew<Wt::WText>(
+  auto sourceWidget = header->addNew<Wt::WText>(
       Wt::WString::fromUTF8("Source: " + source), Wt::TextFormat::Plain);
-  sourceWidget->setInline(false);
   sourceWidget->setAttributeValue("dir", "auto");
-  sourceWidget->setStyleClass("card-header small text-body-secondary");
+  sourceWidget->setStyleClass("small text-body-secondary flex-grow-1 "
+                              "text-break");
+
+  auto deleteButton = header->addNew<Wt::WPushButton>("Delete");
+  deleteButton->setStyleClass("btn-sm btn-outline-danger flex-shrink-0");
+  deleteButton->setToolTip("Delete this text");
+  deleteButton->clicked().connect(
+      [this, hash = text.hash, source = db::Utils::toUtf8(text.source)] {
+        confirmDelete(hash, source);
+      });
 
   auto textWidget = textBlock->addNew<Wt::WText>(
       Wt::WString::fromUTF8(textHtml), Wt::TextFormat::XHTML);
   textWidget->setInline(false);
   textWidget->setStyleClass("card-body source-text");
   textWidget->setAttributeValue("dir", "auto");
+}
+
+void ViewSourcePage::confirmDelete(int hash, const std::string &source) {
+  confirmDestructive(
+      this, "Delete text",
+      (source.empty() ? "Delete this text?"
+                      : "Delete the text from \"" + source + "\"?") +
+          " Its words' counts are lowered by their occurrences in it, and "
+          "words that only appeared in this text are removed unless marked "
+          "known.",
+      "Delete", [this, hash] { deleteText(hash); });
+}
+
+void ViewSourcePage::deleteText(int hash) {
+  db::Savepoint tx{mAppContext->dbHandler->getConnection(), "delete_text"};
+
+  std::vector<db::models::Word> occurrences;
+  for (const auto &wt : mAppContext->wordTextRepository->getAllByHash(hash))
+    occurrences.emplace_back(wt.word, wt.numOccurrences, false, wt.language);
+  mAppContext->wordRepository->subtractFrequencies(occurrences);
+  mAppContext->wordTextRepository->removeByHash(hash);
+  mAppContext->textRepository->remove(hash);
+  tx.commit();
+
+  refresh();
 }

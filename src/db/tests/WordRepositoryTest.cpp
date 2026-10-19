@@ -237,3 +237,45 @@ TEST(WordRepositoryTests, UpdateFrequenciesVectorOverloadMergesKnown) {
   EXPECT_EQ(gamma->numOccurrences, 7);
   EXPECT_FALSE(gamma->known);
 }
+
+TEST(WordRepositoryTests, RemoveWordTest) {
+  auto dbHandler = db::DatabaseHandler{":memory:"};
+  auto wordRepository = db::WordRepository{dbHandler.getConnection()};
+
+  wordRepository.add(db::models::Word{L"chat", 1, false,
+                                      utils::Language::English});
+  wordRepository.add(db::models::Word{L"chat", 1, false,
+                                      utils::Language::French});
+
+  wordRepository.remove(L"chat", utils::Language::English);
+
+  EXPECT_FALSE(
+      wordRepository.getByText(L"chat", utils::Language::English).has_value());
+  EXPECT_TRUE(
+      wordRepository.getByText(L"chat", utils::Language::French).has_value());
+}
+
+TEST(WordRepositoryTests, SubtractFrequenciesTest) {
+  auto dbHandler = db::DatabaseHandler{":memory:"};
+  auto wordRepository = db::WordRepository{dbHandler.getConnection()};
+  const auto en = utils::Language::English;
+
+  wordRepository.add(db::models::Word{L"common", 5, false, en});
+  wordRepository.add(db::models::Word{L"rare", 2, false, en});
+  wordRepository.add(db::models::Word{L"learnt", 2, true, en});
+
+  wordRepository.subtractFrequencies({{L"common", 2, false, en},
+                                      {L"rare", 2, false, en},
+                                      {L"learnt", 3, false, en},
+                                      {L"absent", 1, false, en}});
+
+  EXPECT_EQ(wordRepository.getByText(L"common", en)->numOccurrences, 3);
+  // Unknown words left without occurrences are removed...
+  EXPECT_FALSE(wordRepository.getByText(L"rare", en).has_value());
+  // ...known ones are kept, never going below zero.
+  auto learnt = wordRepository.getByText(L"learnt", en);
+  ASSERT_TRUE(learnt.has_value());
+  EXPECT_EQ(learnt->numOccurrences, 0);
+  EXPECT_TRUE(learnt->known);
+  EXPECT_FALSE(wordRepository.getByText(L"absent", en).has_value());
+}

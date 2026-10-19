@@ -15,7 +15,7 @@ git pull --ff-only
 
 echo "==> Building"
 cmake --preset release
-cmake --build --preset release
+cmake --build --preset release -j2
 
 echo "==> Testing"
 ctest --preset release --output-on-failure

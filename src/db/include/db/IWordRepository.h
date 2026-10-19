@@ -21,5 +21,10 @@ public:
   updateFrequencies(const std::unordered_map<std::wstring, int> &frequencies,
                     const utils::Language &language) = 0;
   virtual void updateFrequencies(const std::vector<models::Word> &words) = 0;
+  // Lowers each word's count by its numOccurrences, removing unknown words
+  // whose count reaches zero. Known words stay, with a count of zero.
+  virtual void subtractFrequencies(const std::vector<models::Word> &words) = 0;
+  virtual void remove(const std::wstring &word,
+                      const utils::Language &language) = 0;
 };
 } // namespace db

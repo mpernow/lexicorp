@@ -19,6 +19,10 @@ private:
   void showAllSources();
   void addSourceBlock(const db::models::Text &text,
                       const std::string &textHtml);
+  void confirmDelete(int hash, const std::string &source);
+  // Removes the text and its word links, and takes its occurrences off the
+  // word counts.
+  void deleteText(int hash);
 
   std::shared_ptr<AppContext> mAppContext;
   Wt::WText *mHeading;

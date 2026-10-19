@@ -69,4 +69,39 @@ WordTextRepository::getByWord(const std::wstring &word,
   }
   return results;
 }
+
+std::vector<models::WordText>
+WordTextRepository::getAllByHash(const int textHash) {
+  sqlite::query q{mDbConn, "SELECT word, text_hash, numOccurrences, language "
+                           "FROM word_text WHERE text_hash = ?"};
+
+  q.bind(1, textHash);
+
+  std::vector<models::WordText> results;
+
+  for (auto &row : q.each()) {
+    results.push_back(models::WordText{
+        .word = Utils::fromUtf8(row.get<std::string>(0)),
+        .textHash = row.get<int>(1),
+        .numOccurrences = row.get<int>(2),
+        .language = utils::language_from_string(row.get<std::string>(3)),
+    });
+  }
+  return results;
+}
+
+void WordTextRepository::removeByWord(const std::wstring &word,
+                                      const utils::Language language) {
+  sqlite::command remove{
+      mDbConn, "DELETE FROM word_text WHERE word = ? AND language = ?"};
+  remove % Utils::toUtf8(word) % utils::to_string(language);
+  remove();
+}
+
+void WordTextRepository::removeByHash(const int textHash) {
+  sqlite::command remove{mDbConn,
+                         "DELETE FROM word_text WHERE text_hash = ?"};
+  remove % textHash;
+  remove();
+}
 } // namespace db

@@ -15,5 +15,6 @@ public:
   virtual std::vector<models::Text> getAll() = 0;
   virtual std::vector<models::Text>
   getAll(const utils::Language &language) = 0;
+  virtual void remove(const int hash) = 0;
 };
 } // namespace db

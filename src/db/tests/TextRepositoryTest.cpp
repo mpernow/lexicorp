@@ -114,3 +114,18 @@ TEST(TextRepositoryTests, GetAllByLanguageTest) {
 
   EXPECT_TRUE(textRepository.getAll(utils::Language::Kurdish).empty());
 }
+
+TEST(TextRepositoryTests, RemoveTextTest) {
+  auto dbHandler = db::DatabaseHandler{":memory:"};
+  auto textRepository = db::TextRepository{dbHandler.getConnection()};
+
+  textRepository.add(
+      db::models::Text{L"first", 1, utils::Language::English, L"a"});
+  textRepository.add(
+      db::models::Text{L"second", 2, utils::Language::English, L"b"});
+
+  textRepository.remove(1);
+
+  EXPECT_FALSE(textRepository.getByHash(1).has_value());
+  EXPECT_TRUE(textRepository.getByHash(2).has_value());
+}

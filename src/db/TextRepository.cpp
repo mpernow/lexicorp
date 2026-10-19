@@ -77,4 +77,10 @@ TextRepository::getAll(const utils::Language &language) {
   return text;
 }
 
+void TextRepository::remove(const int hash) {
+  sqlite::command remove{mDbConn, "DELETE FROM text WHERE hash = ?"};
+  remove % hash;
+  remove();
+}
+
 } // namespace db

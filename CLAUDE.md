@@ -132,6 +132,13 @@ headers in `src/<lib>/include/<lib>/`.
   immediately: no double clicks, and CSS shows a spinner until the response
   (see `InsertTextPage`).
 
+- **Destructive actions** go through `confirmDestructive()`
+  (`pages/ConfirmDialog.h`), a `WMessageBox` with Cancel and a red confirm
+  button. In `pages_test` the open box is found under `app.domRoot()`, not
+  `app.root()`. Deleting a word removes its `words` and `word_text` rows;
+  deleting a text also subtracts its per-text counts from `words`, dropping
+  unknown words that reach zero (known ones stay, with count 0).
+
 - **Text encoding**: text is held in memory as `std::wstring` of Unicode
   code points (UTF-32) and converted to/from UTF-8 only at the SQLite boundary
   via `db::Utils::toUtf8` / `fromUtf8` (ICU). New DB code and models should

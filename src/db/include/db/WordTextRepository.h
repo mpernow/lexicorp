@@ -15,6 +15,10 @@ public:
   getByHash(const int textHash, const utils::Language language) override;
   std::vector<models::WordText>
   getByWord(const std::wstring &word, const utils::Language language) override;
+  std::vector<models::WordText> getAllByHash(const int textHash) override;
+  void removeByWord(const std::wstring &word,
+                    const utils::Language language) override;
+  void removeByHash(const int textHash) override;
 
 private:
   sqlite::connection &mDbConn;

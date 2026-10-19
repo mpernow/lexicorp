@@ -14,8 +14,10 @@
 #include <Wt/WComboBox.h>
 #include <Wt/WEvent.h>
 #include <Wt/WMenu.h>
+#include <Wt/WMessageBox.h>
 #include <Wt/WMenuItem.h>
 #include <Wt/WPushButton.h>
+#include <Wt/WTable.h>
 #include <Wt/WText.h>
 #include <Wt/WTextArea.h>
 
@@ -624,4 +626,107 @@ TEST_F(PagesTest, ViewSourceDoesNotDoubleEscape) {
   EXPECT_TRUE(containsText(page, "l'homme &amp; &lt;la&gt; femme"));
   EXPECT_FALSE(anyTextContains(page, "&amp;#39;"));
   EXPECT_FALSE(anyTextContains(page, "&amp;amp;"));
+}
+
+// The open confirmation dialog, if any (dialogs live outside app.root()).
+Wt::WMessageBox *openDialog(Wt::WApplication &app) {
+  return findOne<Wt::WMessageBox>(app.domRoot());
+}
+
+void answerDialog(Wt::WApplication &app, Wt::StandardButton answer) {
+  auto *box = openDialog(app);
+  ASSERT_NE(box, nullptr);
+  box->button(answer)->clicked().emit(Wt::WMouseEvent());
+  EXPECT_EQ(openDialog(app), nullptr);
+}
+
+TEST_F(PagesTest, DeletingWordAsksFirst) {
+  addText(L"cat sat here", 1, L"src", utils::Language::English);
+  addWord(L"cat", utils::Language::English);
+  addWord(L"dog", utils::Language::English);
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/list", true);
+  auto *list = findOne<DisplayWordsPage>(app.root());
+  ASSERT_NE(list, nullptr);
+
+  auto deleteCat = [list] {
+    auto *table = findOne<Wt::WTable>(list);
+    for (int row = 1; row < table->rowCount(); ++row)
+      if (findButton(table->elementAt(row, 0), "cat"))
+        return findButton(table->elementAt(row, 3), "✕");
+    return static_cast<Wt::WPushButton *>(nullptr);
+  };
+  auto catInDb = [] {
+    db::DatabaseHandler dbHandler;
+    db::WordRepository words{dbHandler.getConnection()};
+    return words.getByText(L"cat", utils::Language::English).has_value();
+  };
+
+  ASSERT_NE(deleteCat(), nullptr);
+  deleteCat()->clicked().emit(Wt::WMouseEvent());
+  answerDialog(app, Wt::StandardButton::Cancel);
+  EXPECT_TRUE(catInDb());
+  EXPECT_NE(findButton(list, "cat"), nullptr);
+
+  deleteCat()->clicked().emit(Wt::WMouseEvent());
+  answerDialog(app, Wt::StandardButton::Yes);
+  EXPECT_FALSE(catInDb());
+  EXPECT_EQ(findButton(list, "cat"), nullptr);
+  EXPECT_NE(findButton(list, "dog"), nullptr);
+
+  db::DatabaseHandler dbHandler;
+  db::WordTextRepository wordTexts{dbHandler.getConnection()};
+  db::TextRepository texts{dbHandler.getConnection()};
+  EXPECT_TRUE(wordTexts.getByWord(L"cat", utils::Language::English).empty());
+  EXPECT_TRUE(texts.getByHash(1).has_value()); // the text itself stays
+}
+
+TEST_F(PagesTest, DeletingTextAsksFirstAndLowersWordCounts) {
+  const auto en = utils::Language::English;
+  {
+    db::DatabaseHandler dbHandler;
+    db::WordRepository words{dbHandler.getConnection()};
+    db::TextRepository texts{dbHandler.getConnection()};
+    db::WordTextRepository wordTexts{dbHandler.getConnection()};
+    texts.add(db::models::Text{L"cat cat bad", 1, en, L"doomed"});
+    texts.add(db::models::Text{L"cat sat", 2, en, L"kept"});
+    words.add(db::models::Word{L"cat", 3, false, en});
+    words.add(db::models::Word{L"bad", 1, false, en});
+    words.add(db::models::Word{L"sat", 1, false, en});
+    wordTexts.add(db::models::WordText{L"cat", 1, 2, en});
+    wordTexts.add(db::models::WordText{L"bad", 1, 1, en});
+    wordTexts.add(db::models::WordText{L"cat", 2, 1, en});
+    wordTexts.add(db::models::WordText{L"sat", 2, 1, en});
+  }
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/source", true);
+  auto *page = viewSourcePage(app);
+  ASSERT_NE(page, nullptr);
+  ASSERT_TRUE(containsText(page, "All sources (2)"));
+
+  // "kept" sorts after "doomed", so the first Delete button is doomed's.
+  findButton(page, "Delete")->clicked().emit(Wt::WMouseEvent());
+  answerDialog(app, Wt::StandardButton::Cancel);
+  EXPECT_TRUE(containsText(page, "All sources (2)"));
+
+  findButton(page, "Delete")->clicked().emit(Wt::WMouseEvent());
+  answerDialog(app, Wt::StandardButton::Yes);
+  EXPECT_TRUE(containsText(page, "All sources (1)"));
+  EXPECT_FALSE(containsText(page, "Source: doomed"));
+  EXPECT_TRUE(containsText(page, "Source: kept"));
+
+  db::DatabaseHandler dbHandler;
+  db::WordRepository words{dbHandler.getConnection()};
+  db::TextRepository texts{dbHandler.getConnection()};
+  db::WordTextRepository wordTexts{dbHandler.getConnection()};
+  EXPECT_FALSE(texts.getByHash(1).has_value());
+  EXPECT_TRUE(wordTexts.getAllByHash(1).empty());
+  EXPECT_EQ(wordTexts.getAllByHash(2).size(), 2u);
+  EXPECT_EQ(words.getByText(L"cat", en)->numOccurrences, 1);
+  EXPECT_EQ(words.getByText(L"sat", en)->numOccurrences, 1);
+  EXPECT_FALSE(words.getByText(L"bad", en).has_value());
 }
