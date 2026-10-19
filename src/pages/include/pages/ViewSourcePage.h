@@ -2,6 +2,7 @@
 
 #include "db/Text.h"
 #include "pages/AppContext.h"
+#include "processor/TextProcessor.h"
 #include <Wt/WContainerWidget.h>
 #include <Wt/WText.h>
 #include <memory>
@@ -25,6 +26,7 @@ private:
   void deleteText(int hash);
 
   std::shared_ptr<AppContext> mAppContext;
+  processor::TextProcessor mTextProcessor;
   Wt::WText *mHeading;
   Wt::WContainerWidget *mTextsContainer;
 };

@@ -66,8 +66,12 @@ std::string htmlEscape(const std::string &input) {
   return out;
 }
 
+// `utf8Word` is a stored word, so tokens of the raw text get the same letter
+// normalisation before comparing.
 std::string highlightWithBreakIterator(const std::string &utf8Text,
-                                       const std::string &utf8Word) {
+                                       const std::string &utf8Word,
+                                       const processor::TextProcessor &letters,
+                                       utils::Language language) {
   UErrorCode status = U_ZERO_ERROR;
 
   icu::UnicodeString text = icu::UnicodeString::fromUTF8(utf8Text);
@@ -91,6 +95,7 @@ std::string highlightWithBreakIterator(const std::string &utf8Text,
     icu::UnicodeString token = text.tempSubStringBetween(start, end);
 
     icu::UnicodeString tokenCopy = token;
+    letters.normalizeLetters(tokenCopy, language);
     tokenCopy.foldCase();
 
     std::string utf8Token;
@@ -149,7 +154,8 @@ void ViewSourcePage::showWordSources() {
     // TODO: Handle case of std::optional being nullopt - it is an error
     if (auto text = mAppContext->textRepository->getByHash(wt.textHash)) {
       addSourceBlock(*text, highlightWithBreakIterator(
-                                db::Utils::toUtf8(text->text), utf8Word));
+                                db::Utils::toUtf8(text->text), utf8Word,
+                                mTextProcessor, mAppContext->selectedLanguage));
     }
   }
 }

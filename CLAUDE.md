@@ -86,6 +86,9 @@ headers in `src/<lib>/include/<lib>/`.
   on the Pi's SD card.
 
 - **processor** — `TextProcessor`: ICU-based pipeline of NFKC normalization →
+  per-language letter normalization (`normalizeLetters`; Kurdish only, via
+  ICU transliterator rules: ك→ک, ي/ى→ی, ھ→ه, ه+ZWNJ/ة→ە, but not word-final
+  ه, which can be a real /h/; `ViewSourcePage` applies it when highlighting) →
   strip punctuation/symbols/control chars (keeping apostrophes) → case-fold →
   word-boundary segmentation, producing a `word -> count` map. Behaviour pinned
   by tests: digit tokens count as words, internal apostrophes are kept, hyphens

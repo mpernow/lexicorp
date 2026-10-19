@@ -95,7 +95,8 @@ InsertTextPage::InsertTextPage(std::shared_ptr<AppContext> appContext)
 void InsertTextPage::process() {
   mProcessButton->enable();
   mText = textEdit_->text().value();
-  mWordCounts = mTextProcessor->computeFrequencies(mText);
+  mWordCounts = mTextProcessor->computeFrequencies(
+      mText, mAppContext->selectedLanguage);
 
   mSource = mSourceTextArea->text().value();
 

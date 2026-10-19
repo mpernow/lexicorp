@@ -1,5 +1,6 @@
 #include "db/DatabaseHandler.h"
 #include "db/TextRepository.h"
+#include "db/Utils.h"
 #include "db/WordRepository.h"
 #include "db/WordTextRepository.h"
 #include "pages/AppContext.h"
@@ -729,4 +730,36 @@ TEST_F(PagesTest, DeletingTextAsksFirstAndLowersWordCounts) {
   EXPECT_EQ(words.getByText(L"cat", en)->numOccurrences, 1);
   EXPECT_EQ(words.getByText(L"sat", en)->numOccurrences, 1);
   EXPECT_FALSE(words.getByText(L"bad", en).has_value());
+}
+
+// Stored words are letter-normalised; the raw text keeps the variant typed.
+TEST_F(PagesTest, HighlightMatchesKurdishLetterVariants) {
+  const std::wstring arabicKaf = L"\u0643\u062A\u06CE\u0628";  // كتێب
+  const std::wstring kurdishKaf = L"\u06A9\u062A\u06CE\u0628"; // کتێب
+  {
+    db::DatabaseHandler dbHandler;
+    db::TextRepository texts{dbHandler.getConnection()};
+    db::WordTextRepository wordTexts{dbHandler.getConnection()};
+    texts.add(db::models::Text{arabicKaf + L" \u0628\u0627\u0634\u06D5", 1,
+                               utils::Language::Kurdish, L"src"});
+    wordTexts.add(
+        db::models::WordText{kurdishKaf, 1, 1, utils::Language::Kurdish});
+  }
+  addWord(kurdishKaf, utils::Language::Kurdish);
+
+  Wt::Test::WTestEnvironment env;
+  env.setCookies({{"language", "Kurdish"}});
+  LexiCorpMain app{env};
+  app.setInternalPath("/list", true);
+  auto *list = findOne<DisplayWordsPage>(app.root());
+  ASSERT_NE(list, nullptr);
+  findButton(list, db::Utils::toUtf8(kurdishKaf))
+      ->clicked()
+      .emit(Wt::WMouseEvent());
+
+  auto *page = viewSourcePage(app);
+  ASSERT_NE(page, nullptr);
+  EXPECT_TRUE(anyTextContains(page, "<span class=\"highlight-word\">" +
+                                        db::Utils::toUtf8(arabicKaf) +
+                                        "</span>"));
 }

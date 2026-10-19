@@ -11,7 +11,7 @@ target_include_directories(processor
         ${ICU_INCLUDE_DIRS}
 )
 
-target_link_libraries(processor PUBLIC vsqlite::vsqlitepp ${ICU_LIBRARIES} OpenSSL::Crypto)
+target_link_libraries(processor PUBLIC vsqlite::vsqlitepp ${ICU_LIBRARIES} OpenSSL::Crypto utils)
 
 
 # Add test executable

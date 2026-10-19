@@ -4,6 +4,25 @@
 #include <vector>
 
 namespace processor {
+namespace {
+// Sorani Kurdish (Central Kurdish) letter variants, as ICU transliterator
+// rules. Arabic kaf and yeh (Sorani only uses the Persian-style ک and ی):
+//   ك → ک, ي → ی, ى → ی
+// Heh doachashmee is another way of writing /h/:
+//   ھ → ه
+// Before U+06D5 (ە) was widely available, the vowel /e/ was typed as heh plus
+// a zero-width non-joiner, which looks the same; teh marbuta was also used:
+//   ه + ZWNJ → ە, ة → ە
+// A bare word-final ه is left alone: it is usually /e/ in older texts but a
+// real /h/ in some words, so mapping it would corrupt those.
+const char16_t *const kKurdishLetterRules =
+    u"[\\u0647\\u06BE] \\u200C > \\u06D5;"
+    u"\\u06BE > \\u0647;"
+    u"\\u0629 > \\u06D5;"
+    u"\\u0643 > \\u06A9;"
+    u"[\\u064A \\u0649] > \\u06CC;";
+} // namespace
+
 TextProcessor::TextProcessor() {
   UErrorCode status = U_ZERO_ERROR;
 
@@ -29,15 +48,23 @@ TextProcessor::TextProcessor() {
   mSeparatorSet.removeAll(mJoinSet);
   mJoinSet.freeze();
   mSeparatorSet.freeze();
+
+  UParseError parseError;
+  mKurdishLetters.reset(icu::Transliterator::createFromRules(
+      "ckb-letters", icu::UnicodeString(kKurdishLetterRules), UTRANS_FORWARD,
+      parseError, status));
+  if (U_FAILURE(status) || !mKurdishLetters)
+    throw std::runtime_error("Failed to create Kurdish letter transliterator");
 }
 
 std::unordered_map<std::wstring, int>
-TextProcessor::computeFrequencies(const std::wstring &input) {
+TextProcessor::computeFrequencies(const std::wstring &input,
+                                  utils::Language language) {
   std::vector<std::wstring> words;
 
   icu::UnicodeString text = toUnicode(input);
 
-  text = normalize(text);
+  text = normalize(text, language);
   text = foldCase(text);
 
   mWordIterator->setText(text);
@@ -92,7 +119,14 @@ std::wstring TextProcessor::toWString(const icu::UnicodeString &u) {
   return ws;
 }
 
-icu::UnicodeString TextProcessor::normalize(const icu::UnicodeString &input) {
+void TextProcessor::normalizeLetters(icu::UnicodeString &text,
+                                     utils::Language language) const {
+  if (language == utils::Language::Kurdish)
+    mKurdishLetters->transliterate(text);
+}
+
+icu::UnicodeString TextProcessor::normalize(const icu::UnicodeString &input,
+                                            utils::Language language) {
   UErrorCode status = U_ZERO_ERROR;
 
   icu::UnicodeString normalized;
@@ -100,6 +134,10 @@ icu::UnicodeString TextProcessor::normalize(const icu::UnicodeString &input) {
 
   if (U_FAILURE(status))
     throw std::runtime_error("ICU normalization failed");
+
+  // After NFKC, which turns Arabic presentation forms into plain letters; and
+  // before stripping, which would remove the ZWNJ in heh + ZWNJ.
+  normalizeLetters(normalized, language);
 
   icu::UnicodeString cleaned;
   for (int32_t i = 0; i < normalized.length();) {

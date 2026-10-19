@@ -1,4 +1,5 @@
 #include "processor/TextProcessor.h"
+#include "utils/Language.h"
 #include <gtest/gtest.h>
 #include <string>
 #include <unordered_map>
@@ -15,7 +16,8 @@ TEST(TextProcessorTests, ComputeFrequenciesTest) {
     )";
   auto textProcessor = processor::TextProcessor();
 
-  auto frequencies = textProcessor.computeFrequencies(text);
+  auto frequencies = textProcessor.computeFrequencies(text,
+                                                      utils::Language::English);
 
   EXPECT_EQ(frequencies.at(L"hi"), 3);
   EXPECT_EQ(frequencies.at(L"hello"), 2);
@@ -31,7 +33,8 @@ TEST(TextProcessorTests, ComputeFrequenciesAccentsTest) {
     )";
   auto textProcessor = processor::TextProcessor();
 
-  auto frequencies = textProcessor.computeFrequencies(text);
+  auto frequencies = textProcessor.computeFrequencies(text,
+                                                      utils::Language::English);
 
   EXPECT_EQ(frequencies.at(L"ça"), 3);
   EXPECT_FALSE(frequencies.contains(L"Ça"));
@@ -48,7 +51,8 @@ TEST(TextProcessorTests, ComputeFrequenciesKurdishTest) {
     )";
   auto textProcessor = processor::TextProcessor();
 
-  auto frequencies = textProcessor.computeFrequencies(text);
+  auto frequencies = textProcessor.computeFrequencies(text,
+                                                      utils::Language::Kurdish);
 
   EXPECT_EQ(frequencies.at(L"سڵاو"), 2);
   EXPECT_FALSE(frequencies.contains(L"سڵاۆ"));
@@ -120,17 +124,18 @@ TEST(TextProcessorTests, HashTestKurdish) {
 
 TEST(TextProcessorTests, ComputeFrequenciesEmptyInput) {
   processor::TextProcessor tp;
-  EXPECT_TRUE(tp.computeFrequencies(L"").empty());
+  EXPECT_TRUE(tp.computeFrequencies(L"", utils::Language::English).empty());
 }
 
 TEST(TextProcessorTests, ComputeFrequenciesPunctuationOnly) {
   processor::TextProcessor tp;
-  EXPECT_TRUE(tp.computeFrequencies(L"!!! ??? ... ,,, --- ;;;").empty());
+  EXPECT_TRUE(tp.computeFrequencies(L"!!! ??? ... ,,, --- ;;;",
+                                     utils::Language::English).empty());
 }
 
 TEST(TextProcessorTests, ComputeFrequenciesCountsDigitTokensAsWords) {
   processor::TextProcessor tp;
-  auto f = tp.computeFrequencies(L"123 456 123 3rd");
+  auto f = tp.computeFrequencies(L"123 456 123 3rd", utils::Language::English);
   EXPECT_EQ(f.at(L"123"), 2);
   EXPECT_EQ(f.at(L"456"), 1);
   EXPECT_EQ(f.at(L"3rd"), 1);
@@ -140,7 +145,8 @@ TEST(TextProcessorTests, ComputeFrequenciesKeepsInternalApostrophes) {
   processor::TextProcessor tp;
   // U+0027 and U+2019 are explicitly excluded from the strip set, so elided /
   // contracted forms stay as one token.
-  auto f = tp.computeFrequencies(L"don't l'homme it’s");
+  auto f = tp.computeFrequencies(L"don't l'homme it’s",
+                                 utils::Language::English);
   EXPECT_EQ(f.at(L"don't"), 1);
   EXPECT_EQ(f.at(L"l'homme"), 1);
   EXPECT_EQ(f.at(L"it’s"), 1);
@@ -150,7 +156,8 @@ TEST(TextProcessorTests, ComputeFrequenciesStripsHyphensBeforeSegmenting) {
   processor::TextProcessor tp;
   // The strip pass runs before word segmentation, so a hyphenated compound
   // collapses into a single token rather than splitting.
-  auto f = tp.computeFrequencies(L"well-known state-of-the-art");
+  auto f = tp.computeFrequencies(L"well-known state-of-the-art",
+                                 utils::Language::English);
   EXPECT_EQ(f.at(L"wellknown"), 1);
   EXPECT_EQ(f.at(L"stateoftheart"), 1);
   EXPECT_FALSE(f.contains(L"well"));
@@ -158,14 +165,15 @@ TEST(TextProcessorTests, ComputeFrequenciesStripsHyphensBeforeSegmenting) {
 
 TEST(TextProcessorTests, ComputeFrequenciesNfkcFoldsLigatures) {
   processor::TextProcessor tp;
-  auto f = tp.computeFrequencies(L"ﬁle office"); // U+FB01 = "ﬁ"
+  auto f = tp.computeFrequencies(L"ﬁle office", // U+FB01 = "ﬁ"
+                                 utils::Language::English);
   EXPECT_EQ(f.at(L"file"), 1);
   EXPECT_FALSE(f.contains(L"ﬁle"));
 }
 
 TEST(TextProcessorTests, ComputeFrequenciesCaseFoldsEszett) {
   processor::TextProcessor tp;
-  auto f = tp.computeFrequencies(L"straße GROß"); // ß
+  auto f = tp.computeFrequencies(L"straße GROß", utils::Language::English); // ß
   EXPECT_EQ(f.at(L"strasse"), 1);
   EXPECT_EQ(f.at(L"gross"), 1);
 }
@@ -187,7 +195,8 @@ TEST(TextProcessorTests, HashGoldenValues) {
 
 TEST(TextProcessorTests, ComputeFrequenciesKurdishQuestionMarkSeparatesWords) {
   processor::TextProcessor tp;
-  auto f = tp.computeFrequencies(L"چۆنی؟\nباشم، سوپاس؟منیش");
+  auto f = tp.computeFrequencies(L"چۆنی؟\nباشم، سوپاس؟منیش",
+                                 utils::Language::Kurdish);
   EXPECT_EQ(f.at(L"چۆنی"), 1);
   EXPECT_EQ(f.at(L"باشم"), 1);
   EXPECT_EQ(f.at(L"سوپاس"), 1);
@@ -197,8 +206,53 @@ TEST(TextProcessorTests, ComputeFrequenciesKurdishQuestionMarkSeparatesWords) {
 
 TEST(TextProcessorTests, ComputeFrequenciesLineBreaksAndPunctuationSeparate) {
   processor::TextProcessor tp;
-  auto f = tp.computeFrequencies(L"you?\nhi\nthere,friend\tand—more");
+  auto f = tp.computeFrequencies(L"you?\nhi\nthere,friend\tand—more",
+                                 utils::Language::English);
   for (const auto *w : {L"you", L"hi", L"there", L"friend", L"and", L"more"})
     EXPECT_EQ(f.at(w), 1) << w;
   EXPECT_EQ(f.size(), 6u);
+}
+
+// Variant letters typed on Arabic or older keyboards count as the standard
+// Sorani spelling.
+TEST(TextProcessorTests, ComputeFrequenciesNormalizesKurdishLetters) {
+  processor::TextProcessor tp;
+  const auto ckb = utils::Language::Kurdish;
+
+  // Arabic kaf / yeh / alef maksura -> Kurdish keheh / farsi yeh.
+  auto f = tp.computeFrequencies(L"\u0643\u062A\u06CE\u0628 "      // كتێب
+                                 L"\u06A9\u062A\u06CE\u0628 "      // کتێب
+                                 L"\u0628\u0627\u0634\u064A "      // باشي
+                                 L"\u0628\u0627\u0634\u0649 "      // باشى
+                                 L"\u0628\u0627\u0634\u06CC",      // باشی
+                                 ckb);
+  EXPECT_EQ(f.at(L"\u06A9\u062A\u06CE\u0628"), 2);
+  EXPECT_EQ(f.at(L"\u0628\u0627\u0634\u06CC"), 3);
+  EXPECT_EQ(f.size(), 2u);
+
+  // ھ -> ه; heh + ZWNJ and teh marbuta -> ە.
+  f = tp.computeFrequencies(L"\u06BE\u0627\u062A "                 // ھات
+                            L"\u0647\u0627\u062A "                 // هات
+                            L"\u0645\u0627\u0644\u0647\u200C "   // ماله‌
+                            L"\u0645\u0627\u0644\u0629 "          // مالة
+                            L"\u0645\u0627\u0644\u06D5",          // مالە
+                            ckb);
+  EXPECT_EQ(f.at(L"\u0647\u0627\u062A"), 2);
+  EXPECT_EQ(f.at(L"\u0645\u0627\u0644\u06D5"), 3);
+  EXPECT_EQ(f.size(), 2u);
+}
+
+TEST(TextProcessorTests, ComputeFrequenciesKeepsWordFinalHeh) {
+  processor::TextProcessor tp;
+  // A bare final ه may be a real /h/, so it isn't turned into ە.
+  auto f = tp.computeFrequencies(L"\u0645\u0627\u0644\u0647",
+                                 utils::Language::Kurdish);
+  EXPECT_EQ(f.at(L"\u0645\u0627\u0644\u0647"), 1);
+}
+
+TEST(TextProcessorTests, KurdishLettersOnlyNormalizedForKurdish) {
+  processor::TextProcessor tp;
+  auto f = tp.computeFrequencies(L"\u0643\u062A\u0628",
+                                 utils::Language::English);
+  EXPECT_EQ(f.at(L"\u0643\u062A\u0628"), 1);
 }
