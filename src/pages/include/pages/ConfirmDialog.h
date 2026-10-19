@@ -18,14 +18,15 @@ inline void confirmDestructive(Wt::WObject *owner, const std::string &title,
       Wt::Icon::Warning, Wt::StandardButton::None));
 
   box->addButton("Cancel", Wt::StandardButton::Cancel)
-      ->setStyleClass("btn-outline-secondary");
+      ->setStyleClass("btn-secondary");
   auto confirmButton = box->addButton(Wt::WString::fromUTF8(confirmLabel),
                                       Wt::StandardButton::Yes);
   confirmButton->setStyleClass("btn-danger busy-button");
   // Disabled in the browser at once (see "Slow actions" in CLAUDE.md); the
   // box is removed afterwards, so it never needs re-enabling.
   confirmButton->clicked().connect(confirmButton, &Wt::WWidget::disable);
-  box->setDefaultButton(Wt::StandardButton::Cancel);
+  // No default button: Wt's theme adds btn-primary to it, which clashes
+  // with its own style (grey text on blue until hovered).
   box->setEscapeButton(Wt::StandardButton::Cancel);
 
   box->buttonClicked().connect(

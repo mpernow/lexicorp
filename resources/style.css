@@ -153,6 +153,24 @@ body {
   cursor: pointer;
 }
 
+/* Icon-only delete button in the word list: a cross drawn as an SVG mask in
+   the button's text colour, so it needs no icon font or ✕ glyph. */
+.delete-button {
+  line-height: 1;
+}
+.delete-button::before {
+  content: "";
+  display: inline-block;
+  width: 0.875em;
+  height: 0.875em;
+  vertical-align: -0.0625em;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 3l10 10M13 3L3 13' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 3l10 10M13 3L3 13' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
 /* Submit stays reachable while scrolling a long word table. */
 .sticky-submit {
   position: sticky;

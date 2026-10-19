@@ -145,7 +145,9 @@ void DisplayWordsPage::buildTable() {
     switchWrapper->addWidget(std::move(knownSwitch));
     mWordTable->elementAt(rowCount, 2)->addWidget(std::move(switchWrapper));
 
-    auto deleteButton = std::make_unique<Wt::WPushButton>("✕");
+    // The cross is drawn by CSS (.delete-button), not a ✕ character, which
+    // some devices' fonts lack.
+    auto deleteButton = std::make_unique<Wt::WPushButton>();
     deleteButton->setStyleClass("btn-sm btn-outline-danger delete-button");
     deleteButton->setToolTip("Delete word");
     deleteButton->setAttributeValue("aria-label", "Delete word");

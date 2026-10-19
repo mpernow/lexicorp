@@ -656,7 +656,7 @@ TEST_F(PagesTest, DeletingWordAsksFirst) {
     auto *table = findOne<Wt::WTable>(list);
     for (int row = 1; row < table->rowCount(); ++row)
       if (findButton(table->elementAt(row, 0), "cat"))
-        return findButton(table->elementAt(row, 3), "✕");
+        return findOne<Wt::WPushButton>(table->elementAt(row, 3));
     return static_cast<Wt::WPushButton *>(nullptr);
   };
   auto catInDb = [] {
