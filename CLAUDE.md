@@ -72,12 +72,14 @@ headers in `src/<lib>/include/<lib>/`.
   persisted as their string name, never as the enum ordinal.
 
 - **db** — persistence. `DatabaseHandler` owns one `sqlite::connection`.
-  Five repositories (`WordRepository`, `TextRepository`, `WordTextRepository`,
-  `SentenceRepository`, `WordSentenceRepository`, each behind an
+  Seven repositories (`WordRepository`, `TextRepository`, `WordTextRepository`,
+  `SentenceRepository`, `WordSentenceRepository`, `DictionaryRepository`,
+  `WordFormRepository`, each behind an
   `I*Repository` interface) take that connection by reference and
   **create their own table in the constructor**. Model structs live in
   `db/*.h` (`models::Word`, `models::Text`, `models::WordText`,
-  `models::Sentence`, `models::WordSentence`); each satisfies
+  `models::Sentence`, `models::WordSentence`, `models::DictionaryEntry`,
+  `models::WordForm`); each satisfies
   the `db::Utils::IsDbModel` concept by exposing `static tableName` and
   `static schema()`, and `Utils::createTableSql<T>()` turns that into a
   `CREATE TABLE IF NOT EXISTS`. For transactions use `db::Savepoint`
@@ -114,7 +116,13 @@ headers in `src/<lib>/include/<lib>/`.
   `/insert` → `InsertTextPage`, `/list` → `DisplayWordsPage`, `/source` →
   `ViewSourcePage` (all texts) and `/source/word` (the sentences containing
   `selectedWord`, grouped by text, with a per-text "Show full text" toggle
-  that marks those sentences in the whole text).
+  that marks those sentences in the whole text, under the word's gloss and
+  an "Edit gloss" dialog).
+  Glosses (`pages/Glosses.h`): a word's entries from the preferred
+  `DictionarySource` (manual > Wiktionary > Claude > Google), or, without
+  entries of its own, those of a lemma it is a form of (`word_form`).
+  `DisplayWordsPage` shows them under each word; editing saves a `manual`
+  entry, and saving it empty removes it.
 
 ### Cross-cutting conventions
 
@@ -157,7 +165,9 @@ headers in `src/<lib>/include/<lib>/`.
   in one transaction. `main()` runs it before `WRun`, since it isn't safe
   with concurrent sessions. A schema or data change that existing databases
   need gets a new `migrateToVersionN` step. Version 1 rehashed texts to 64
-  bits and generated sentences for existing texts.
+  bits and generated sentences for existing texts; version 2 letter-normalised
+  Kurdish words stored before `normalizeLetters` existed (merging counts) and
+  regenerated Kurdish texts' sentence links.
 
 - **Text encoding**: text is held in memory as `std::wstring` of Unicode
   code points (UTF-32) and converted to/from UTF-8 only at the SQLite boundary
@@ -178,10 +188,24 @@ headers in `src/<lib>/include/<lib>/`.
 - `word_sentence` — PRIMARY KEY `(word, language, text_hash, ordinal)`,
   per-sentence occurrence count; indexed on `text_hash`. Powers
   `/source/word`. Only words saved with the text are linked.
+- `dictionary` — `id` PRIMARY KEY, indexed on `(headword, language)`; one
+  gloss per row (a headword can have several: one per sense and source),
+  `part_of_speech`, `source` (`manual` / `wiktionary` / `claude` / `google`),
+  `ai_generated`, `updated_at` (Unix time). Headwords are normalised like
+  `words`, and independent of it: deleting a word keeps its entries.
+- `word_form` — PRIMARY KEY `(form, language, lemma)`, `tags`: inflected and
+  alternative forms pointing at a headword.
+
+`tools/import_wiktionary.py` fills `dictionary` (source `wiktionary`) and
+`word_form` from the kaikki.org Central Kurdish extract, replacing its
+earlier rows; the data file stays out of git (`*.jsonl` is ignored). It
+re-implements the word normalisation in Python, so a change to
+`kKurdishLetterRules` or the punctuation handling in `TextProcessor` must be
+mirrored there.
 
 The typical flow: `InsertTextPage` runs `TextProcessor::extractSentences`,
 lets the user pick which words to keep and mark as known, then writes rows to
-all five tables in one transaction (sentences via `saveSentences()`,
+the five corpus tables in one transaction (sentences via `saveSentences()`,
 `pages/Sentences.h`, shared with the migration); `DisplayWordsPage`
 lists/sorts/filters `words`; `ViewSourcePage` joins `word_sentence` →
 `sentence` → `text`.

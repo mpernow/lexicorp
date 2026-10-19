@@ -32,6 +32,10 @@ private:
   void addSentencesBlock(const db::models::Text &text,
                          const std::vector<db::models::Sentence> &sentences,
                          const std::string &utf8Word);
+  // The selected word's gloss, with an Edit button.
+  void showGloss();
+  // Asks for the word's own (manual) gloss and saves it.
+  void editGloss(const std::wstring &word, const std::string &current);
   void confirmDelete(std::int64_t hash, const std::string &source);
   // Removes the text and its word links, and takes its occurrences off the
   // word counts.
@@ -40,5 +44,6 @@ private:
   std::shared_ptr<AppContext> mAppContext;
   processor::TextProcessor mTextProcessor;
   Wt::WText *mHeading;
+  Wt::WContainerWidget *mGlossContainer;
   Wt::WContainerWidget *mTextsContainer;
 };

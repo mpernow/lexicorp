@@ -1,6 +1,7 @@
 #include "pages/ViewSourcePage.h"
 #include "pages/ConfirmDialog.h"
 #include "pages/EmptyState.h"
+#include "pages/Glosses.h"
 #include "db/Savepoint.h"
 #include "db/Sentence.h"
 #include "db/Text.h"
@@ -8,9 +9,12 @@
 #include "db/WordText.h"
 #include <Wt/WApplication.h>
 #include <Wt/WBreak.h>
+#include <Wt/WDialog.h>
+#include <Wt/WLineEdit.h>
 #include <Wt/WPushButton.h>
 #include <Wt/WText.h>
 #include <algorithm>
+#include <cwctype>
 #include <unicode/brkiter.h>
 #include <unicode/unistr.h>
 #include <unicode/ustream.h>
@@ -24,6 +28,8 @@ ViewSourcePage::ViewSourcePage(std::shared_ptr<AppContext> appContext)
   mHeading = container->addNew<Wt::WText>();
   mHeading->setInline(false);
   mHeading->setStyleClass("h5 mb-3");
+
+  mGlossContainer = container->addNew<Wt::WContainerWidget>();
 
   mTextsContainer =
       container->addWidget(std::make_unique<Wt::WContainerWidget>());
@@ -154,6 +160,7 @@ highlightSentences(const std::wstring &fullText,
 } // namespace
 
 void ViewSourcePage::refresh() {
+  mGlossContainer->clear();
   mTextsContainer->clear();
 
   if (Wt::WApplication::instance()->internalPath() == "/source/word" &&
@@ -196,6 +203,8 @@ void ViewSourcePage::showWordSources() {
                                           std::to_string(shown) + ")"));
   mHeading->setTextFormat(Wt::TextFormat::Plain);
 
+  showGloss();
+
   if (groups.empty()) {
     mTextsContainer->addWidget(makeEmptyState(
         "No stored sentence contains \"" + utf8Word + "\".", false));
@@ -203,6 +212,122 @@ void ViewSourcePage::showWordSources() {
 
   for (const auto &[text, textSentences] : groups)
     addSentencesBlock(text, textSentences, utf8Word);
+}
+
+namespace {
+std::string sourceLabel(const Gloss &gloss) {
+  std::string label;
+  switch (gloss.entries.front().source) {
+  case db::models::DictionarySource::Manual:
+    label = "Your gloss";
+    break;
+  case db::models::DictionarySource::Wiktionary:
+    label = "Wiktionary";
+    break;
+  case db::models::DictionarySource::Claude:
+    label = "Claude (AI-generated)";
+    break;
+  case db::models::DictionarySource::Google:
+    label = "Google Translate";
+    break;
+  }
+  if (!gloss.lemma.empty())
+    label = "Form of " + db::Utils::toUtf8(gloss.lemma) + " · " + label;
+  return label;
+}
+} // namespace
+
+void ViewSourcePage::showGloss() {
+  const std::wstring word = mAppContext->selectedWord;
+  auto gloss = glossOf(*mAppContext, word);
+
+  auto card = mGlossContainer->addNew<Wt::WContainerWidget>();
+  card->setStyleClass("card mb-3 gloss-card");
+  auto body = card->addNew<Wt::WContainerWidget>();
+  body->setStyleClass("card-body d-flex align-items-start gap-2");
+  auto lines = body->addNew<Wt::WContainerWidget>();
+  lines->setStyleClass("flex-grow-1");
+
+  // The text the editor starts with: the word's own gloss, if it has one.
+  std::string current;
+  if (!gloss) {
+    auto none = lines->addNew<Wt::WText>("No gloss yet.");
+    none->setStyleClass("text-body-secondary");
+  } else {
+    if (gloss->lemma.empty() &&
+        gloss->entries.front().source == db::models::DictionarySource::Manual)
+      current = glossSummary(*gloss);
+
+    std::vector<std::wstring> shown;
+    for (const auto &entry : gloss->entries) {
+      if (std::ranges::find(shown, entry.gloss) != shown.end())
+        continue;
+      shown.push_back(entry.gloss);
+
+      auto line = lines->addNew<Wt::WContainerWidget>();
+      line->setStyleClass("gloss-line");
+      if (!entry.partOfSpeech.empty()) {
+        line->addNew<Wt::WText>(
+                Wt::WString::fromUTF8(db::Utils::toUtf8(entry.partOfSpeech)),
+                Wt::TextFormat::Plain)
+            ->setStyleClass("gloss-pos text-body-secondary fst-italic me-2");
+      }
+      line->addNew<Wt::WText>(
+          Wt::WString::fromUTF8(db::Utils::toUtf8(entry.gloss)),
+          Wt::TextFormat::Plain);
+    }
+
+    auto source = lines->addNew<Wt::WText>(
+        Wt::WString::fromUTF8(sourceLabel(*gloss)), Wt::TextFormat::Plain);
+    source->setInline(false);
+    source->setStyleClass("gloss-source small text-body-secondary mt-1");
+  }
+
+  auto editButton = body->addNew<Wt::WPushButton>("Edit gloss");
+  editButton->setStyleClass("btn-sm btn-outline-secondary flex-shrink-0");
+  editButton->clicked().connect(
+      [this, word, current] { editGloss(word, current); });
+}
+
+void ViewSourcePage::editGloss(const std::wstring &word,
+                               const std::string &current) {
+  auto dialog = addChild(std::make_unique<Wt::WDialog>(Wt::WString::fromUTF8(
+      "Gloss for \"" + db::Utils::toUtf8(word) + "\"")));
+  dialog->setClosable(true);
+  dialog->rejectWhenEscapePressed();
+
+  auto edit = dialog->contents()->addNew<Wt::WLineEdit>(
+      Wt::WString::fromUTF8(current));
+  edit->setPlaceholderText("Leave empty to use the dictionary's gloss");
+  edit->setStyleClass("form-control");
+  edit->setFocus();
+
+  auto cancel = dialog->footer()->addNew<Wt::WPushButton>("Cancel");
+  cancel->setStyleClass("btn-secondary");
+  cancel->clicked().connect(dialog, &Wt::WDialog::reject);
+  auto save = dialog->footer()->addNew<Wt::WPushButton>("Save");
+  save->setStyleClass("btn-primary");
+  save->clicked().connect(dialog, &Wt::WDialog::accept);
+  edit->enterPressed().connect(dialog, &Wt::WDialog::accept);
+
+  dialog->finished().connect([this, dialog, edit, word](Wt::DialogCode code) {
+    std::wstring gloss = db::Utils::fromUtf8(edit->text().toUTF8());
+    // Destroyed at the end of this handler, not during it.
+    auto removed = removeChild(dialog);
+    if (code != Wt::DialogCode::Accepted)
+      return;
+
+    // Trimmed, so a gloss of only spaces removes it.
+    auto isSpace = [](wchar_t c) { return std::iswspace(c); };
+    gloss.erase(gloss.begin(), std::ranges::find_if_not(gloss, isSpace));
+    gloss.erase(std::ranges::find_if_not(gloss.rbegin(), gloss.rend(), isSpace)
+                    .base(),
+                gloss.end());
+    mAppContext->dictionaryRepository->setManualGloss(
+        word, mAppContext->selectedLanguage, gloss);
+    refresh();
+  });
+  dialog->show();
 }
 
 void ViewSourcePage::showAllSources() {

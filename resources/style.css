@@ -149,6 +149,22 @@ body {
   text-decoration: underline;
 }
 
+/* A word's gloss, under it in the word list. The gloss is usually in
+   another script than the word (English for Kurdish): its own text decides
+   its direction, but it stays aligned with the word above it. */
+.word-gloss {
+  unicode-bidi: plaintext;
+  overflow-wrap: anywhere;
+}
+
+/* The selected word's gloss on /source/word. */
+.gloss-line {
+  unicode-bidi: plaintext;
+}
+.gloss-line + .gloss-line {
+  margin-top: 0.25rem;
+}
+
 /* Bigger tap targets for the per-word switches and checkboxes. */
 .known-switch {
   margin: 0;

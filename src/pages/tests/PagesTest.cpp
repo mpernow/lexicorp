@@ -15,7 +15,9 @@
 #include <Wt/Test/WTestEnvironment.h>
 #include <Wt/WCheckBox.h>
 #include <Wt/WComboBox.h>
+#include <Wt/WDialog.h>
 #include <Wt/WEvent.h>
+#include <Wt/WLineEdit.h>
 #include <Wt/WMenu.h>
 #include <Wt/WMessageBox.h>
 #include <Wt/WMenuItem.h>
@@ -26,7 +28,9 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <map>
 #include <gtest/gtest.h>
+#include <sqlite/execute.hpp>
 #include <string>
 #include <vector>
 
@@ -926,4 +930,156 @@ TEST_F(PagesTest, MigrationRehashesTextsAndAddsSentences) {
     EXPECT_EQ(appContext.sentenceRepository->getByWord(L"ran", en).size(), 1u);
     EXPECT_TRUE(appContext.sentenceRepository->getByWord(L"dog", en).empty());
   }
+}
+
+TEST_F(PagesTest, MigrationNormalizesKurdishWords) {
+  const std::wstring arabicKaf = L"كتێب";  // كتێب
+  const std::wstring kurdishKaf = L"کتێب"; // کتێب
+  const std::wstring text = arabicKaf + L" باشە. " +
+                            kurdishKaf;
+  const auto hash =
+      static_cast<std::int64_t>(processor::TextProcessor{}.hashWstring(text));
+  const auto ckb = utils::Language::Kurdish;
+  {
+    // A version 1 database with words stored before letter normalisation.
+    AppContext appContext;
+    sqlite::execute(appContext.dbHandler->getConnection(),
+                    "PRAGMA user_version = 1", true);
+    appContext.textRepository->add(db::models::Text{text, hash, ckb, L"s"});
+    appContext.wordRepository->add(db::models::Word{arabicKaf, 1, false, ckb});
+    appContext.wordRepository->add(db::models::Word{kurdishKaf, 2, true, ckb});
+    appContext.wordTextRepository->add(
+        db::models::WordText{arabicKaf, hash, 1, ckb});
+    appContext.wordTextRepository->add(
+        db::models::WordText{kurdishKaf, hash, 2, ckb});
+  }
+
+  for (int run = 0; run < 2; ++run) { // the second run must change nothing
+    AppContext appContext;
+    migrateDatabase(appContext);
+
+    EXPECT_FALSE(
+        appContext.wordRepository->getByText(arabicKaf, ckb).has_value());
+    auto word = appContext.wordRepository->getByText(kurdishKaf, ckb);
+    ASSERT_TRUE(word.has_value());
+    EXPECT_EQ(word->numOccurrences, 3);
+    EXPECT_TRUE(word->known);
+
+    auto wordTexts = appContext.wordTextRepository->getAllByHash(hash);
+    ASSERT_EQ(wordTexts.size(), 1u);
+    EXPECT_EQ(wordTexts[0].word, kurdishKaf);
+    EXPECT_EQ(wordTexts[0].numOccurrences, 3);
+
+    // Both sentences contain the word, whichever kaf they were typed with.
+    EXPECT_EQ(appContext.sentenceRepository->getByWord(kurdishKaf, ckb).size(),
+              2u);
+  }
+}
+
+namespace {
+void addDictionaryEntry(const std::wstring &headword, const std::wstring &gloss,
+                        db::models::DictionarySource source) {
+  AppContext appContext;
+  appContext.dictionaryRepository->add(
+      db::models::DictionaryEntry{.headword = headword,
+                                  .language = utils::Language::English,
+                                  .gloss = gloss,
+                                  .partOfSpeech = L"noun",
+                                  .source = source});
+}
+
+// The gloss shown under each word in the word list, by word.
+std::map<std::string, std::string> wordListGlosses(Wt::WWidget *list) {
+  auto *table = findOne<Wt::WTable>(list);
+  std::map<std::string, std::string> glosses;
+  for (int row = 1; row < table->rowCount(); ++row) {
+    auto *cell = table->elementAt(row, 0);
+    std::string word = findOne<Wt::WPushButton>(cell)->text().toUTF8();
+    for (auto *text : findAll<Wt::WText>(cell))
+      if (text->hasStyleClass("word-gloss"))
+        glosses[word] = text->text().toUTF8();
+  }
+  return glosses;
+}
+
+Wt::WDialog *openGlossDialog(Wt::WApplication &app) {
+  return findOne<Wt::WDialog>(app.domRoot());
+}
+} // namespace
+
+TEST_F(PagesTest, WordListShowsPreferredGlosses) {
+  for (const auto *word : {L"cat", L"dog", L"ran"})
+    addWord(word, utils::Language::English);
+  using db::models::DictionarySource;
+  addDictionaryEntry(L"cat", L"feline", DictionarySource::Wiktionary);
+  addDictionaryEntry(L"cat", L"pet", DictionarySource::Manual);
+  addDictionaryEntry(L"run", L"to move fast", DictionarySource::Wiktionary);
+  addDictionaryEntry(L"run", L"to manage", DictionarySource::Wiktionary);
+  {
+    AppContext appContext;
+    appContext.wordFormRepository->add(db::models::WordForm{
+        L"ran", utils::Language::English, L"run", L"past"});
+  }
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/list", true);
+
+  EXPECT_EQ(wordListGlosses(findOne<DisplayWordsPage>(app.root())),
+            (std::map<std::string, std::string>{
+                {"cat", "pet"},
+                {"ran", "form of run: to move fast; to manage"}}));
+}
+
+TEST_F(PagesTest, EditingGlossSavesManualEntry) {
+  addText(L"The cat sat.", 1, L"src", utils::Language::English, L"cat");
+  addWord(L"cat", utils::Language::English);
+  addDictionaryEntry(L"cat", L"feline", db::models::DictionarySource::Wiktionary);
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/list", true);
+  findButton(findOne<DisplayWordsPage>(app.root()), "cat")
+      ->clicked()
+      .emit(Wt::WMouseEvent());
+  auto *page = viewSourcePage(app);
+  ASSERT_NE(page, nullptr);
+  EXPECT_TRUE(containsText(page, "feline"));
+  EXPECT_TRUE(containsText(page, "Wiktionary"));
+
+  // Without a gloss of its own the editor starts empty; spaces are trimmed.
+  findButton(page, "Edit gloss")->clicked().emit(Wt::WMouseEvent());
+  auto *dialog = openGlossDialog(app);
+  ASSERT_NE(dialog, nullptr);
+  auto *edit = findOne<Wt::WLineEdit>(dialog);
+  EXPECT_EQ(edit->text().toUTF8(), "");
+  edit->setText("  house cat ");
+  findButton(dialog, "Save")->clicked().emit(Wt::WMouseEvent());
+  EXPECT_EQ(openGlossDialog(app), nullptr);
+
+  {
+    AppContext appContext;
+    auto entries = appContext.dictionaryRepository->getByHeadword(
+        L"cat", utils::Language::English);
+    ASSERT_EQ(entries.size(), 2u);
+    EXPECT_EQ(entries[0].gloss, L"house cat");
+    EXPECT_EQ(entries[0].source, db::models::DictionarySource::Manual);
+  }
+  EXPECT_TRUE(containsText(page, "house cat"));
+  EXPECT_TRUE(containsText(page, "Your gloss"));
+  EXPECT_FALSE(containsText(page, "feline"));
+
+  // Cancel keeps it; saving it empty falls back to the dictionary.
+  findButton(page, "Edit gloss")->clicked().emit(Wt::WMouseEvent());
+  edit = findOne<Wt::WLineEdit>(openGlossDialog(app));
+  EXPECT_EQ(edit->text().toUTF8(), "house cat");
+  edit->setText("");
+  findButton(openGlossDialog(app), "Cancel")->clicked().emit(Wt::WMouseEvent());
+  EXPECT_TRUE(containsText(page, "house cat"));
+
+  findButton(page, "Edit gloss")->clicked().emit(Wt::WMouseEvent());
+  findOne<Wt::WLineEdit>(openGlossDialog(app))->setText("");
+  findButton(openGlossDialog(app), "Save")->clicked().emit(Wt::WMouseEvent());
+  EXPECT_TRUE(containsText(page, "feline"));
+  EXPECT_FALSE(containsText(page, "house cat"));
 }

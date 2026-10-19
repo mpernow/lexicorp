@@ -17,6 +17,7 @@ private:
     std::wstring word;
     int count;
     bool known;
+    std::string gloss; // UTF-8, empty without one
   };
 
   void buildTable();

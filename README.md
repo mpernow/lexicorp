@@ -73,6 +73,16 @@ Run `sudo systemctl daemon-reload`, then `./deploy.sh` to build and install, the
 
 To deploy updates, run `./deploy.sh` from the repo on the server. It pulls, builds, runs the tests, backs up the database, installs to `/opt/lexicorp` and restarts the service.
 
+## Dictionary
+
+Glosses for Kurdish words come from Wiktionary, via the kaikki.org extract. Download it and import it into the database (the app must have run once, so the tables exist); re-running replaces the previous import and keeps glosses entered by hand:
+
+```
+curl -LO 'https://kaikki.org/dictionary/Central%20Kurdish/kaikki.org-dictionary-CentralKurdish.jsonl'
+sudo -u lexicorp python3 tools/import_wiktionary.py \
+  --db /var/lib/lexicorp/lexiCorp.db kaikki.org-dictionary-CentralKurdish.jsonl
+```
+
 # Licence
 
 The Noto Naskh Arabic font in `resources/fonts/` is licensed under the SIL Open Font License 1.1; see `resources/fonts/OFL.txt`.

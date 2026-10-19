@@ -6,6 +6,7 @@ add_library(pages
     ViewSourcePage.cpp
     Sentences.cpp
     Migration.cpp
+    Glosses.cpp
 )
 
 target_include_directories(pages

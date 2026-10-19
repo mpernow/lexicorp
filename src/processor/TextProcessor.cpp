@@ -15,6 +15,7 @@ namespace {
 //   ه + ZWNJ → ە, ة → ە
 // A bare word-final ه is left alone: it is usually /e/ in older texts but a
 // real /h/ in some words, so mapping it would corrupt those.
+// Mirrored in tools/import_wiktionary.py, which normalises dictionary words.
 const char16_t *const kKurdishLetterRules =
     u"[\\u0647\\u06BE] \\u200C > \\u06D5;"
     u"\\u06BE > \\u0647;"

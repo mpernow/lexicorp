@@ -9,6 +9,7 @@
 #include "pages/ConfirmDialog.h"
 #include "pages/DisplayWordsPage.h"
 #include "pages/EmptyState.h"
+#include "pages/Glosses.h"
 
 DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
     : mAppContext(appContext) {
@@ -48,9 +49,14 @@ void DisplayWordsPage::loadData() {
   std::vector<db::models::Word> words =
       mAppContext->wordRepository->getAll(mAppContext->selectedLanguage);
 
+  auto glosses = glossesOfStoredWords(*mAppContext);
+
   mRows.clear();
   for (const db::models::Word word : words) {
-    mRows.emplace_back(word.word, word.numOccurrences, word.known);
+    auto gloss = glosses.find(word.word);
+    mRows.emplace_back(word.word, word.numOccurrences, word.known,
+                       gloss == glosses.end() ? ""
+                                              : glossSummary(gloss->second));
   }
   std::sort(mRows.begin(), mRows.end(), [](const RowData &a, const RowData &b) {
     return a.count > b.count;
@@ -119,6 +125,12 @@ void DisplayWordsPage::buildTable() {
       Wt::WApplication::instance()->setInternalPath("/source/word", true);
     });
     mWordTable->elementAt(rowCount, 0)->addWidget(std::move(wordButton));
+    if (!r.gloss.empty()) {
+      auto gloss = mWordTable->elementAt(rowCount, 0)->addNew<Wt::WText>(
+          Wt::WString::fromUTF8(r.gloss), Wt::TextFormat::Plain);
+      gloss->setInline(false);
+      gloss->setStyleClass("word-gloss small text-body-secondary");
+    }
     mWordTable->elementAt(rowCount, 0)->setAttributeValue("dir", "auto");
 
     mWordTable->elementAt(rowCount, 1)
