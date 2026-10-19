@@ -253,6 +253,11 @@ unless noted.
 
 - Do not run `git commit` yourself. Leave staging and committing to the
   repository owner.
+- `DatabaseHandler` turns off vsqlite++'s statement cache. The cache keeps
+  statements without resetting them, so a query left before its last row
+  (e.g. `getByText` returning the first match) held a read lock for the
+  connection's lifetime. Other sessions, and the import script, then got
+  "database is locked" on every write.
 - Table-level constraints are smuggled into `schema()` as fake columns, e.g.
   `{"PRIMARY", "KEY(word, language)"}`. `createTableSql<T>()` just joins
   `"<first> <second>"` pairs with commas, so this emits a valid

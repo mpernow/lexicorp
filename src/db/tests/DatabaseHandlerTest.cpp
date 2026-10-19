@@ -54,3 +54,33 @@ TEST(DatabaseHandlerTests, DefaultConstructorOpensDefaultFile) {
     std::filesystem::remove(defaultPath);
   }
 }
+
+// A query left before its last row must not keep a read lock that stops other
+// connections (other sessions, the import script) from writing.
+TEST(DatabaseHandlerTests, UnfinishedQueryDoesNotBlockOtherWriters) {
+  const std::filesystem::path path =
+      std::filesystem::temp_directory_path() / "lexicorp_dbhandler_lock.db";
+  std::filesystem::remove(path);
+
+  {
+    auto reader = db::DatabaseHandler{path.string()};
+    auto writer = db::DatabaseHandler{path.string()};
+    sqlite::execute(reader.getConnection(), "CREATE TABLE t(x INTEGER)", true);
+    sqlite::execute(reader.getConnection(), "INSERT INTO t VALUES(1), (2)",
+                    true);
+
+    {
+      // Like WordRepository::getByText: return on the first row.
+      sqlite::query q{reader.getConnection(), "SELECT x FROM t"};
+      for (auto &row : q.each()) {
+        EXPECT_EQ(row.get<int>(0), 1);
+        break;
+      }
+    }
+
+    EXPECT_NO_THROW(sqlite::execute(writer.getConnection(),
+                                    "INSERT INTO t VALUES(3)", true));
+  }
+
+  std::filesystem::remove(path);
+}
