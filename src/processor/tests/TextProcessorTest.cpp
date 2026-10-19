@@ -184,3 +184,21 @@ TEST(TextProcessorTests, HashGoldenValues) {
   EXPECT_EQ(tp.hashWstring(L""), 1449310910991872227ULL);
   EXPECT_EQ(tp.hashWstring(L"hello"), 1054880662928880172ULL);
 }
+
+TEST(TextProcessorTests, ComputeFrequenciesKurdishQuestionMarkSeparatesWords) {
+  processor::TextProcessor tp;
+  auto f = tp.computeFrequencies(L"چۆنی؟\nباشم، سوپاس؟منیش");
+  EXPECT_EQ(f.at(L"چۆنی"), 1);
+  EXPECT_EQ(f.at(L"باشم"), 1);
+  EXPECT_EQ(f.at(L"سوپاس"), 1);
+  EXPECT_EQ(f.at(L"منیش"), 1);
+  EXPECT_EQ(f.size(), 4u);
+}
+
+TEST(TextProcessorTests, ComputeFrequenciesLineBreaksAndPunctuationSeparate) {
+  processor::TextProcessor tp;
+  auto f = tp.computeFrequencies(L"you?\nhi\nthere,friend\tand—more");
+  for (const auto *w : {L"you", L"hi", L"there", L"friend", L"and", L"more"})
+    EXPECT_EQ(f.at(w), 1) << w;
+  EXPECT_EQ(f.size(), 6u);
+}

@@ -33,6 +33,7 @@ private:
 private:
   const icu::Normalizer2 *mNormalizer;
   std::unique_ptr<icu::BreakIterator> mWordIterator;
-  icu::UnicodeSet mRemoveSet;
+  icu::UnicodeSet mJoinSet;
+  icu::UnicodeSet mSeparatorSet;
 };
 } // namespace processor

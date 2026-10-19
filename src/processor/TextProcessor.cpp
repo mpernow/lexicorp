@@ -17,11 +17,18 @@ TextProcessor::TextProcessor() {
   if (U_FAILURE(status) || !mWordIterator)
     throw std::runtime_error("Failed to create ICU BreakIterator");
 
-  icu::UnicodeString pattern = UNICODE_STRING_SIMPLE("[[:P:][:S:][:Cc:]-['’]]");
-  mRemoveSet = icu::UnicodeSet(pattern, status);
+  // Hyphens are dropped, joining compounds ("well-known" -> "wellknown").
+  // Other punctuation, symbols and control characters (incl. line breaks)
+  // become spaces, so they still separate the words around them.
+  mJoinSet = icu::UnicodeSet(
+      UNICODE_STRING_SIMPLE("[\\-\\u2010\\u2011]"), status);
+  mSeparatorSet = icu::UnicodeSet(
+      UNICODE_STRING_SIMPLE("[[:P:][:S:][:Cc:]-['’]]"), status);
   if (U_FAILURE(status))
     throw std::runtime_error("Failed to init UnicodeSet");
-  mRemoveSet.freeze();
+  mSeparatorSet.removeAll(mJoinSet);
+  mJoinSet.freeze();
+  mSeparatorSet.freeze();
 }
 
 std::unordered_map<std::wstring, int>
@@ -98,9 +105,10 @@ icu::UnicodeString TextProcessor::normalize(const icu::UnicodeString &input) {
   for (int32_t i = 0; i < normalized.length();) {
     UChar32 c = normalized.char32At(i);
 
-    if (!mRemoveSet.contains(c)) {
+    if (mSeparatorSet.contains(c))
+      cleaned.append(u' ');
+    else if (!mJoinSet.contains(c))
       cleaned.append(c);
-    }
 
     i = normalized.moveIndex32(i, 1);
   }
