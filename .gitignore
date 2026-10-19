@@ -1,3 +1,4 @@
 build/
 *.db
 *.jsonl
+__pycache__
