@@ -37,6 +37,7 @@ Tests are implemented using Google Test. They are run with `ctest --preset <rele
 - vsqlite++: fetched from GitHub when building, see https://github.com/vinzenz/vsqlite-- and `src/db/CMakeLists.txt`
 - googletest: fetched from GitHub when building, see `CMakeLists.txt`
 - ICU: `sudo apt install libicu-dev`
+- libcurl (for the Claude API): `sudo apt install libcurl4-openssl-dev`
 - OpenSSL 3.0.13
 
 # Deployment
@@ -64,12 +65,38 @@ ExecStart=/opt/lexicorp/LexiCorp --docroot "/opt/lexicorp;/resources" \
   --resources-dir /usr/local/share/Wt/resources \
   --http-address 127.0.0.1 --http-port 8080
 Restart=on-failure
+# Optional: enables "Ask Claude" glosses (see below).
+EnvironmentFile=-/etc/lexicorp/claude.env
 
 [Install]
 WantedBy=multi-user.target
 ```
 
 Run `sudo systemctl daemon-reload`, then `./deploy.sh` to build and install, then `sudo systemctl enable lexicorp` so it starts at boot. The app only listens on localhost; `sudo tailscale serve --bg 8080` makes it available over HTTPS on the tailnet.
+
+## Claude glosses
+
+With an API key, a Kurdish word without a gloss gets an "Ask Claude" button on its sources page. The answer (glosses, plus any idioms the word is part of in its sentences) is stored as AI-generated dictionary entries, and the Home page shows this month's requests and their estimated cost. Without a key the button doesn't appear.
+
+Create a key in the Claude Console (set a monthly spend limit there), then on the server:
+
+```
+sudo mkdir -p /etc/lexicorp
+sudo install -m 600 -o root -g root /dev/null /etc/lexicorp/claude.env
+sudoedit /etc/lexicorp/claude.env
+```
+
+with
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+# Optional; the default is claude-sonnet-5-5.
+LEXICORP_CLAUDE_MODEL=claude-sonnet-5-5
+```
+
+and restart the service. systemd reads the file as root, so the `lexicorp` user can't. Locally, export the same variables before `cmake --build build/debug --target run`.
+
+The prompt is `prompts/define_word.md`; it is compiled into the binary, so rebuild after editing it.
 
 To deploy updates, run `./deploy.sh` from the repo on the server. It pulls, builds, runs the tests, backs up the database, installs to `/opt/lexicorp` and restarts the service.
 

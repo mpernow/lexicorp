@@ -7,6 +7,8 @@ add_library(db
     WordSentenceRepository.cpp
     DictionaryRepository.cpp
     WordFormRepository.cpp
+    ExpressionWordRepository.cpp
+    ClaudeUsageRepository.cpp
 )
 
 include(FetchContent)
@@ -104,6 +106,15 @@ target_link_libraries(dictionary_repository_test
     vsqlite::vsqlitepp
 )
 
+add_executable(claude_repositories_test
+    tests/ClaudeRepositoriesTest.cpp
+)
+target_link_libraries(claude_repositories_test
+    gtest_main
+    db
+    vsqlite::vsqlitepp
+)
+
 # Register tests
 include(GoogleTest)
 gtest_discover_tests(db_utils_test)
@@ -114,3 +125,4 @@ gtest_discover_tests(word_text_repository_test)
 gtest_discover_tests(savepoint_test)
 gtest_discover_tests(sentence_repository_test)
 gtest_discover_tests(dictionary_repository_test)
+gtest_discover_tests(claude_repositories_test)

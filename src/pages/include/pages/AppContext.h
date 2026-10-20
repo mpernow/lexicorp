@@ -1,8 +1,11 @@
 #pragma once
 #include <memory>
 
+#include "claude/ClaudeClient.h"
+#include "db/ClaudeUsageRepository.h"
 #include "db/DatabaseHandler.h"
 #include "db/DictionaryRepository.h"
+#include "db/ExpressionWordRepository.h"
 #include "db/SentenceRepository.h"
 #include "db/TextRepository.h"
 #include "db/WordFormRepository.h"
@@ -30,7 +33,15 @@ public:
         std::make_shared<db::DictionaryRepository>(dbHandler->getConnection());
     wordFormRepository =
         std::make_shared<db::WordFormRepository>(dbHandler->getConnection());
+    expressionWordRepository = std::make_shared<db::ExpressionWordRepository>(
+        dbHandler->getConnection());
+    claudeUsageRepository =
+        std::make_shared<db::ClaudeUsageRepository>(dbHandler->getConnection());
   }
+
+  // The client every session uses, set by main() when an API key is
+  // configured (and by tests); null turns the Claude features off.
+  static inline std::shared_ptr<claude::IClaudeClient> sharedClaudeClient;
 
   // Matches the first entry of the sidebar language combo box.
   utils::Language selectedLanguage = utils::Language::English;
@@ -46,4 +57,7 @@ public:
   std::shared_ptr<db::WordSentenceRepository> wordSentenceRepository;
   std::shared_ptr<db::DictionaryRepository> dictionaryRepository;
   std::shared_ptr<db::WordFormRepository> wordFormRepository;
+  std::shared_ptr<db::ExpressionWordRepository> expressionWordRepository;
+  std::shared_ptr<db::ClaudeUsageRepository> claudeUsageRepository;
+  std::shared_ptr<claude::IClaudeClient> claudeClient = sharedClaudeClient;
 };

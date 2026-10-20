@@ -17,4 +17,6 @@ private:
   Wt::WText *mWordCount;
   Wt::WText *mKnownCount;
   Wt::WText *mTextCount;
+  // This month's Claude requests and their cost; hidden without any.
+  Wt::WText *mClaudeUsage;
 };

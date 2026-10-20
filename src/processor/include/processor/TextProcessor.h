@@ -43,6 +43,11 @@ public:
   static std::unordered_map<std::wstring, int>
   sumFrequencies(const std::vector<Sentence> &sentences);
 
+  // The input's words in order, normalised as in extractSentences(). Used to
+  // store multi-word expressions and find them in sentences.
+  std::vector<std::wstring> words(const std::wstring &input,
+                                  utils::Language language);
+
   // Maps a language's variant spellings of letters to one form, so a word
   // typed on different keyboards is counted once. Applied by
   // computeFrequencies(); also needed to match stored words against raw text.
@@ -55,6 +60,9 @@ private:
   std::unordered_map<std::wstring, int>
   countWords(const icu::UnicodeString &sentence, utils::Language language,
              icu::BreakIterator &wordIterator);
+  std::vector<std::wstring> wordsOf(const icu::UnicodeString &sentence,
+                                    utils::Language language,
+                                    icu::BreakIterator &wordIterator);
 
   icu::UnicodeString toUnicode(const std::wstring &w);
   std::wstring toWString(const icu::UnicodeString &u);

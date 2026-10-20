@@ -2,6 +2,7 @@ add_subdirectory(pages)
 add_subdirectory(db)
 add_subdirectory(processor)
 add_subdirectory(utils)
+add_subdirectory(claude)
 
 add_executable(LexiCorp
     main.cpp
@@ -9,6 +10,7 @@ add_executable(LexiCorp
 
 target_link_libraries(LexiCorp PRIVATE
     pages
+    claude
     db
     processor
     utils

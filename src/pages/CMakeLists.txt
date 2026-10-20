@@ -7,6 +7,7 @@ add_library(pages
     Sentences.cpp
     Migration.cpp
     Glosses.cpp
+    ClaudeLookup.cpp
 )
 
 target_include_directories(pages
@@ -14,7 +15,7 @@ target_include_directories(pages
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_link_libraries(pages PUBLIC db processor utils)
+target_link_libraries(pages PUBLIC claude db processor utils)
 
 # Add test executable
 add_executable(pages_test

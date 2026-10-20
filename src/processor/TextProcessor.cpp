@@ -121,21 +121,41 @@ TextProcessor::sumFrequencies(const std::vector<Sentence> &sentences) {
   return results;
 }
 
+std::vector<std::wstring>
+TextProcessor::words(const std::wstring &input, utils::Language language) {
+  UErrorCode status = U_ZERO_ERROR;
+  std::unique_ptr<icu::BreakIterator> wordIterator(
+      icu::BreakIterator::createWordInstance(locale(language), status));
+  if (U_FAILURE(status) || !wordIterator)
+    throw std::runtime_error("Failed to create ICU BreakIterator");
+  return wordsOf(toUnicode(input), language, *wordIterator);
+}
+
 std::unordered_map<std::wstring, int>
 TextProcessor::countWords(const icu::UnicodeString &sentence,
                           utils::Language language,
                           icu::BreakIterator &wordIterator) {
+  std::unordered_map<std::wstring, int> results;
+  for (auto &word : wordsOf(sentence, language, wordIterator))
+    results[std::move(word)]++;
+  return results;
+}
+
+std::vector<std::wstring>
+TextProcessor::wordsOf(const icu::UnicodeString &sentence,
+                       utils::Language language,
+                       icu::BreakIterator &wordIterator) {
   icu::UnicodeString text = foldCase(normalize(sentence, language));
   wordIterator.setText(text);
 
-  std::unordered_map<std::wstring, int> results;
+  std::vector<std::wstring> results;
   int32_t start = wordIterator.first();
   for (int32_t end = wordIterator.next(); end != icu::BreakIterator::DONE;
        start = end, end = wordIterator.next()) {
     icu::UnicodeString token = text.tempSubStringBetween(start, end);
 
     if (isWord(token))
-      results[toWString(token)]++;
+      results.push_back(toWString(token));
   }
   return results;
 }

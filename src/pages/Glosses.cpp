@@ -66,6 +66,37 @@ std::optional<Gloss> glossOf(AppContext &appContext,
   return std::nullopt;
 }
 
+std::vector<Expression> expressionsOf(AppContext &appContext,
+                                      const std::wstring &word) {
+  auto language = appContext.selectedLanguage;
+
+  std::vector<Expression> expressions;
+  for (auto &expression :
+       appContext.expressionWordRepository->getByWord(word, language)) {
+    auto entries =
+        appContext.dictionaryRepository->getByHeadword(expression, language);
+    if (entries.empty())
+      continue;
+    auto words =
+        appContext.expressionWordRepository->getWords(expression, language);
+    expressions.push_back({std::move(expression), std::move(words),
+                           Gloss{preferredSource(std::move(entries))}});
+  }
+  return expressions;
+}
+
+bool containsExpression(const std::vector<std::wstring> &sentenceWords,
+                        const std::wstring &word,
+                        const Expression &expression) {
+  auto contains = [&](const std::wstring &w) {
+    return std::ranges::find(sentenceWords, w) != sentenceWords.end();
+  };
+  return contains(word) &&
+         std::ranges::any_of(expression.words, [&](const auto &other) {
+           return other != word && contains(other);
+         });
+}
+
 std::string glossSummary(const Gloss &gloss) {
   std::vector<std::wstring> seen;
   std::string summary;

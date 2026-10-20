@@ -16,6 +16,10 @@ public:
                 const utils::Language language) override;
   std::vector<models::DictionaryEntry>
   getForStoredWords(const utils::Language language) override;
+  void
+  replaceEntries(const std::wstring &headword, const utils::Language language,
+                 const models::DictionarySource source,
+                 const std::vector<models::DictionaryEntry> &entries) override;
   void setManualGloss(const std::wstring &headword,
                       const utils::Language language,
                       const std::wstring &gloss) override;

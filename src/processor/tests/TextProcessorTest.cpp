@@ -328,3 +328,13 @@ TEST(TextProcessorTests, ComputeFrequenciesSumsSentences) {
   EXPECT_EQ(f.at(L"dog"), 1);
   EXPECT_EQ(f.size(), 7u);
 }
+
+TEST(TextProcessorTests, WordsKeepsOrderAndRepeats) {
+  processor::TextProcessor tp;
+  EXPECT_EQ(tp.words(L"The well-known cat, the CAT!", utils::Language::English),
+            (std::vector<std::wstring>{L"the", L"wellknown", L"cat", L"the",
+                                       L"cat"}));
+  // Letter variants are normalised as for stored words (ي → ی).
+  EXPECT_EQ(tp.words(L"پێم وايە", utils::Language::Kurdish),
+            (std::vector<std::wstring>{L"پێم", L"وایە"}));
+}

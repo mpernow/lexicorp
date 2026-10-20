@@ -56,14 +56,16 @@ warnings in its output come from Wt's Bootstrap 5 theme and are expected.
 ## Dependencies
 
 External libs are expected to be installed on the system: **Wt 4.12.1**, Boost,
-**ICU** (`libicu-dev`), SQLite3, OpenSSL, plus CMake ≥ 3.21 and a C++23
-compiler (g++ 13.3). Two deps are fetched at configure time via `FetchContent`:
+**ICU** (`libicu-dev`), SQLite3, OpenSSL, **libcurl**
+(`libcurl4-openssl-dev`; the local Wt is built without SSL, so
+`Wt::Http::Client` can't do HTTPS), plus CMake ≥ 3.21 and a C++23 compiler
+(g++ 13.3). Two deps are fetched at configure time via `FetchContent`:
 **GoogleTest** and **vsqlite++** (the C++ SQLite wrapper, imported as
 `vsqlite::vsqlitepp`). See `README.md` for install commands.
 
 ## Architecture
 
-Four static libraries under `src/`, linked into the `LexiCorp` executable
+Five static libraries under `src/`, linked into the `LexiCorp` executable
 (`src/main.cpp` is a thin `Wt::WRun` wrapper). Each library keeps public
 headers in `src/<lib>/include/<lib>/`.
 
@@ -72,14 +74,16 @@ headers in `src/<lib>/include/<lib>/`.
   persisted as their string name, never as the enum ordinal.
 
 - **db** — persistence. `DatabaseHandler` owns one `sqlite::connection`.
-  Seven repositories (`WordRepository`, `TextRepository`, `WordTextRepository`,
+  Nine repositories (`WordRepository`, `TextRepository`, `WordTextRepository`,
   `SentenceRepository`, `WordSentenceRepository`, `DictionaryRepository`,
-  `WordFormRepository`, each behind an
+  `WordFormRepository`, `ExpressionWordRepository`, `ClaudeUsageRepository`,
+  each behind an
   `I*Repository` interface) take that connection by reference and
   **create their own table in the constructor**. Model structs live in
   `db/*.h` (`models::Word`, `models::Text`, `models::WordText`,
   `models::Sentence`, `models::WordSentence`, `models::DictionaryEntry`,
-  `models::WordForm`); each satisfies
+  `models::WordForm`, `models::ExpressionWord`, `models::ClaudeUsage`); each
+  satisfies
   the `db::Utils::IsDbModel` concept by exposing `static tableName` and
   `static schema()`, and `Utils::createTableSql<T>()` turns that into a
   `CREATE TABLE IF NOT EXISTS`. For transactions use `db::Savepoint`
@@ -104,7 +108,23 @@ headers in `src/<lib>/include/<lib>/`.
   by tests: digit tokens count as words, internal apostrophes are kept, hyphens
   are stripped before segmentation (so `well-known` becomes one word). Also
   `hashWstring`, a SHA-256 (OpenSSL) digest truncated to `uint64_t`, used to
-  identify a text; stored as `std::int64_t` (the same bits).
+  identify a text; stored as `std::int64_t` (the same bits). `words()` runs
+  the same pipeline but keeps the words in order (for multi-word expressions).
+
+- **claude** — Claude API client (raw HTTPS over libcurl: there is no C++
+  SDK). `ClaudeClient::defineWord` sends a word plus up to five of its
+  sentences and returns glosses, idioms and token usage; it blocks, so pages
+  call it through `runInBackground`. Request building / response parsing
+  (`defineWordRequest`, `parseDefineWordResponse`) are free functions tested
+  without a network. It uses structured outputs (`output_config.format`, a
+  JSON schema), effort `low`, `fallbacks: "default"`, and caches the system
+  prompt. The prompt is `prompts/define_word.md`, compiled in through a
+  CMake-generated header (`claude/DefineWordPrompt.h`) so the binary stays
+  self-contained; it is Sorani-only, so the UI only offers lookups for
+  Kurdish (`kClaudeLanguage`). Configured by `ANTHROPIC_API_KEY` (no key: the
+  feature is hidden) and `LEXICORP_CLAUDE_MODEL` (default
+  `claude-sonnet-5-5`). `pricingFor` holds per-model prices for the Home
+  page's cost estimate; add a model there when switching to it.
 
 - **pages** — one `Wt::WContainerWidget` subclass per screen.
   `LexiCorpMain` (`Wt::WApplication`) builds the shell: a sidebar with a
@@ -117,12 +137,23 @@ headers in `src/<lib>/include/<lib>/`.
   `ViewSourcePage` (all texts) and `/source/word` (the sentences containing
   `selectedWord`, grouped by text, with a per-text "Show full text" toggle
   that marks those sentences in the whole text, under the word's gloss and
-  an "Edit gloss" dialog).
+  an "Edit gloss" dialog, plus "Ask Claude" for a Kurdish word without a
+  gloss; idioms the word is part of are listed in the gloss card and under
+  each sentence containing them).
   Glosses (`pages/Glosses.h`): a word's entries from the preferred
   `DictionarySource` (manual > Wiktionary > Claude > Google), or, without
   entries of its own, those of a lemma it is a form of (`word_form`).
-  `DisplayWordsPage` shows them under each word; editing saves a `manual`
-  entry, and saving it empty removes it.
+  `DisplayWordsPage` shows them under each word (AI-generated ones in
+  italics); editing saves a `manual` entry, and saving it empty removes it.
+  `saveLookup()` (`pages/ClaudeLookup.h`) stores a Claude answer: glosses as
+  the word's `claude` entries, idioms (including compound verbs, often split
+  by their object) as entries of their own under their dictionary form (part
+  of speech `idiom`, e.g. `تاوتوێ کردن`), linked through `expression_word`
+  to their words in both the sentence's and the dictionary form, and the
+  request's usage. Idioms are dropped unless they have 2–5 words
+  (`kMaxExpressionWords`), including the looked-up word, that occur in order
+  (gaps allowed) in one of the sentences sent. A sentence on `/source/word`
+  gets an idiom's note when it contains the word and another linked word.
 
 ### Cross-cutting conventions
 
@@ -152,6 +183,14 @@ headers in `src/<lib>/include/<lib>/`.
   immediately: no double clicks, and CSS shows a spinner until the response
   (see `InsertTextPage`).
 
+- **Background work** (a Claude request): `runInBackground(work, done)`
+  (`pages/Background.h`) runs `work` on a thread and `done` back in the
+  session via `WServer::post` + server push. `work` must not touch the
+  session or `AppContext`'s connection; do DB writes in `done`. Wt's test
+  environment has a server but never runs posted functions, so tests set
+  `runBackgroundWorkInForeground` (`useFakeClaude()` in `PagesTest.cpp`
+  does, along with `AppContext::sharedClaudeClient`).
+
 - **Destructive actions** go through `confirmDestructive()`
   (`pages/ConfirmDialog.h`), a `WMessageBox` with Cancel and a red confirm
   button. In `pages_test` the open box is found under `app.domRoot()`, not
@@ -167,7 +206,8 @@ headers in `src/<lib>/include/<lib>/`.
   need gets a new `migrateToVersionN` step. Version 1 rehashed texts to 64
   bits and generated sentences for existing texts; version 2 letter-normalised
   Kurdish words stored before `normalizeLetters` existed (merging counts) and
-  regenerated Kurdish texts' sentence links.
+  regenerated Kurdish texts' sentence links; version 3 removed Claude idioms
+  longer than `kMaxExpressionWords` (whole clauses).
 
 - **Text encoding**: text is held in memory as `std::wstring` of Unicode
   code points (UTF-32) and converted to/from UTF-8 only at the SQLite boundary
@@ -195,6 +235,13 @@ headers in `src/<lib>/include/<lib>/`.
   `words`, and independent of it: deleting a word keeps its entries.
 - `word_form` — PRIMARY KEY `(form, language, lemma)`, `tags`: inflected and
   alternative forms pointing at a headword.
+- `expression_word` — PRIMARY KEY `(word, language, expression)`: links each
+  word of an idiom to it, in every form seen. The idiom's gloss is a
+  `dictionary` entry whose headword is its dictionary form's normalised words
+  joined by single spaces.
+- `claude_usage` — one row per Claude API request: `created_at`, `model`,
+  `purpose`, input / output / cache-read / cache-creation tokens. The Home
+  page shows this month's total (UTC) and an estimated cost.
 
 `tools/import_wiktionary.py` fills `dictionary` (source `wiktionary`) and
 `word_form` from the kaikki.org Central Kurdish extract, replacing its
@@ -216,7 +263,8 @@ lists/sorts/filters `words`; `ViewSourcePage` joins `word_sentence` →
 release build + tests, a pre-deploy DB backup, installs the binary and
 `resources/` to `/opt/lexicorp`, and restarts the `lexicorp` systemd service.
 The service runs as user `lexicorp` with `WorkingDirectory=/var/lib/lexicorp`,
-so the live database is `/var/lib/lexicorp/lexiCorp.db`; it listens on
+so the live database is `/var/lib/lexicorp/lexiCorp.db`; the API key comes
+from a root-owned, mode-600 `EnvironmentFile=` (see `README.md`); it listens on
 `127.0.0.1:8080` and is exposed via `tailscale serve`. The binary must stay
 self-contained (our libs and vsqlite++ linked statically — see
 `BUILD_SHARED_LIBS` in the top-level `CMakeLists.txt`) since it is copied

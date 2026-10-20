@@ -20,6 +20,12 @@ public:
   // ordered as in getByHeadword().
   virtual std::vector<models::DictionaryEntry>
   getForStoredWords(const utils::Language language) = 0;
+  // Replaces the headword's entries from `source` with `entries` (whose own
+  // headword, language and source are ignored).
+  virtual void
+  replaceEntries(const std::wstring &headword, const utils::Language language,
+                 const models::DictionarySource source,
+                 const std::vector<models::DictionaryEntry> &entries) = 0;
   // Replaces the headword's manual entry (removes it if `gloss` is empty).
   virtual void setManualGloss(const std::wstring &headword,
                               const utils::Language language,

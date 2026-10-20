@@ -4,6 +4,7 @@
 #include "db/WordRepository.h"
 #include "db/WordTextRepository.h"
 #include "pages/AppContext.h"
+#include "pages/Background.h"
 #include "pages/DisplayWordsPage.h"
 #include "pages/InsertTextPage.h"
 #include "pages/HomePage.h"
@@ -118,6 +119,8 @@ protected:
   }
 
   void TearDown() override {
+    AppContext::sharedClaudeClient.reset();
+    runBackgroundWorkInForeground = false;
     std::filesystem::current_path(mOriginalDir);
     std::filesystem::remove_all(mTestDir);
   }
@@ -1082,4 +1085,250 @@ TEST_F(PagesTest, EditingGlossSavesManualEntry) {
   findButton(openGlossDialog(app), "Save")->clicked().emit(Wt::WMouseEvent());
   EXPECT_TRUE(containsText(page, "feline"));
   EXPECT_FALSE(containsText(page, "house cat"));
+}
+
+namespace {
+// Answers every lookup with `answer`, and remembers the queries.
+class FakeClaudeClient : public claude::IClaudeClient {
+public:
+  explicit FakeClaudeClient(claude::WordLookup answer)
+      : mAnswer(std::move(answer)) {}
+
+  claude::WordLookup defineWord(const claude::WordQuery &query) override {
+    mQueries.push_back(query);
+    return mAnswer;
+  }
+
+  claude::WordLookup mAnswer;
+  std::vector<claude::WordQuery> mQueries;
+};
+
+std::shared_ptr<FakeClaudeClient> useFakeClaude(claude::WordLookup answer) {
+  auto client = std::make_shared<FakeClaudeClient>(std::move(answer));
+  AppContext::sharedClaudeClient = client;
+  runBackgroundWorkInForeground = true;
+  return client;
+}
+
+// Opens /source/word for `word` from the word list.
+ViewSourcePage *openWord(Wt::WApplication &app, const std::string &word) {
+  app.setInternalPath("/list", true);
+  findButton(findOne<DisplayWordsPage>(app.root()), word)
+      ->clicked()
+      .emit(Wt::WMouseEvent());
+  return findOne<ViewSourcePage>(app.root());
+}
+
+const auto ckb = utils::Language::Kurdish;
+} // namespace
+
+TEST_F(PagesTest, AskClaudeOnlyForKurdishWordsWithoutGloss) {
+  addText(L"The cat sat.", 1, L"src", utils::Language::English, L"cat");
+  addWord(L"cat", utils::Language::English);
+  addText(L"پێم وایە درەنگە.", 2, L"src", ckb, L"پێم");
+  addWord(L"پێم", ckb);
+  addText(L"ئاو خۆشە.", 3, L"src", ckb, L"ئاو");
+  addWord(L"ئاو", ckb);
+  {
+    AppContext appContext;
+    appContext.dictionaryRepository->setManualGloss(L"ئاو", ckb, L"water");
+  }
+
+  {
+    // Without an API key there is no button.
+    Wt::Test::WTestEnvironment env;
+    LexiCorpMain app{env};
+    selectLanguage(app, "Kurdish");
+    EXPECT_EQ(findButton(openWord(app, "پێم"), "Ask Claude"), nullptr);
+  }
+
+  useFakeClaude({});
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  EXPECT_EQ(findButton(openWord(app, "cat"), "Ask Claude"), nullptr);
+  selectLanguage(app, "Kurdish");
+  EXPECT_NE(findButton(openWord(app, "پێم"), "Ask Claude"), nullptr);
+  EXPECT_EQ(findButton(openWord(app, "ئاو"), "Ask Claude"), nullptr);
+}
+
+TEST_F(PagesTest, AskClaudeStoresGlossIdiomsAndUsage) {
+  addText(L"پێم وایە درەنگە.", 1, L"src", ckb, L"پێم");
+  addWord(L"پێم", ckb);
+  addWord(L"وایە", ckb);
+  auto client = useFakeClaude(claude::WordLookup{
+      .senses = {{L"to me", L"preposition"}},
+      .idioms = {{L"پێم وايە", L"", L"i think"}, // a letter variant
+                 {L"پێم دەڵێن", L"", L"they tell me"}, // not in the sentence
+                 {L"وایە", L"", L"is so"}},             // a single word
+      .usage = claude::Usage{.model = "claude-sonnet-5-5",
+                             .inputTokens = 900,
+                             .outputTokens = 40},
+  });
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  selectLanguage(app, "Kurdish");
+  auto *page = openWord(app, "پێم");
+  findButton(page, "Ask Claude")->clicked().emit(Wt::WMouseEvent());
+
+  ASSERT_EQ(client->mQueries.size(), 1u);
+  EXPECT_EQ(client->mQueries[0].word, L"پێم");
+  EXPECT_EQ(client->mQueries[0].sentences,
+            (std::vector<std::wstring>{L"پێم وایە درەنگە."}));
+
+  {
+    AppContext appContext;
+    auto entries = appContext.dictionaryRepository->getByHeadword(L"پێم", ckb);
+    ASSERT_EQ(entries.size(), 1u);
+    EXPECT_EQ(entries[0].gloss, L"to me");
+    EXPECT_EQ(entries[0].source, db::models::DictionarySource::Claude);
+    EXPECT_TRUE(entries[0].aiGenerated);
+
+    // The idiom is stored normalised and linked to both its words.
+    auto idiom =
+        appContext.dictionaryRepository->getByHeadword(L"پێم وایە", ckb);
+    ASSERT_EQ(idiom.size(), 1u);
+    EXPECT_EQ(idiom[0].gloss, L"i think");
+    EXPECT_EQ(idiom[0].partOfSpeech, L"idiom");
+    for (const auto *word : {L"پێم", L"وایە"})
+      EXPECT_EQ(appContext.expressionWordRepository->getByWord(word, ckb),
+                (std::vector<std::wstring>{L"پێم وایە"}));
+    EXPECT_TRUE(appContext.dictionaryRepository
+                    ->getByHeadword(L"پێم دەڵێن", ckb)
+                    .empty());
+
+    auto usage = appContext.claudeUsageRepository->totalsSince(0);
+    ASSERT_EQ(usage.size(), 1u);
+    EXPECT_EQ(usage[0].inputTokens, 900);
+  }
+
+  EXPECT_TRUE(containsText(page, "to me"));
+  EXPECT_TRUE(containsText(page, "Claude (AI-generated)"));
+  EXPECT_TRUE(containsText(page, "Part of"));
+  EXPECT_TRUE(containsText(page, "i think"));
+  EXPECT_EQ(findButton(page, "Ask Claude"), nullptr);
+  bool underSentence = false;
+  for (auto *widget : findAll<Wt::WContainerWidget>(page))
+    underSentence = underSentence ||
+                    (widget->hasStyleClass("sentence-expression") &&
+                     containsText(widget, "i think"));
+  EXPECT_TRUE(underSentence);
+
+  // The other word of the idiom shows it too.
+  page = openWord(app, "وایە");
+  EXPECT_TRUE(containsText(page, "i think"));
+  EXPECT_NE(findButton(page, "Ask Claude"), nullptr);
+
+  app.setInternalPath("/", true);
+  auto *home = findOne<HomePage>(app.root());
+  EXPECT_TRUE(anyTextContains(home, "Claude this month: 1 lookup · 900 tokens "
+                                    "in, 40 out · <$0.01"));
+}
+
+TEST_F(PagesTest, AskClaudeShowsErrors) {
+  addText(L"پێم وایە درەنگە.", 1, L"src", ckb, L"پێم");
+  addWord(L"پێم", ckb);
+  useFakeClaude(
+      claude::WordLookup{.error = "Claude is overloaded; try again later"});
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  selectLanguage(app, "Kurdish");
+  auto *page = openWord(app, "پێم");
+  findButton(page, "Ask Claude")->clicked().emit(Wt::WMouseEvent());
+
+  EXPECT_TRUE(containsText(page, "Claude is overloaded; try again later."));
+  auto *button = findButton(page, "Ask Claude");
+  ASSERT_NE(button, nullptr);
+  EXPECT_TRUE(button->isEnabled());
+  {
+    AppContext appContext;
+    EXPECT_TRUE(appContext.claudeUsageRepository->totalsSince(0).empty());
+  }
+
+  // Shown once: gone when the page is redrawn.
+  page = openWord(app, "پێم");
+  EXPECT_FALSE(containsText(page, "Claude is overloaded; try again later."));
+}
+
+TEST_F(PagesTest, AskClaudeStoresSplitCompoundVerbsByDictionaryForm) {
+  addText(L"ئەوان دوێنێ تاوتوێی پرسەکەی ئاو و کارەبایان کرد.", 1, L"src", ckb,
+          L"تاوتوێی");
+  addWord(L"تاوتوێی", ckb);
+  addWord(L"کرد", ckb);
+  useFakeClaude(claude::WordLookup{
+      .senses = {{L"discussion", L"noun"}},
+      .idioms = {// Split by its object.
+                 {L"تاوتوێی کرد", L"تاوتوێ کردن", L"to discuss"},
+                 // A whole clause, not an expression.
+                 {L"تاوتوێی پرسەکەی ئاو و کارەبایان کرد", L"",
+                  L"discussed water and power"}},
+  });
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  selectLanguage(app, "Kurdish");
+  auto *page = openWord(app, "تاوتوێی");
+  findButton(page, "Ask Claude")->clicked().emit(Wt::WMouseEvent());
+
+  {
+    AppContext appContext;
+    auto idiom =
+        appContext.dictionaryRepository->getByHeadword(L"تاوتوێ کردن", ckb);
+    ASSERT_EQ(idiom.size(), 1u);
+    EXPECT_EQ(idiom[0].gloss, L"to discuss");
+    // Both forms of its words are linked to it.
+    EXPECT_EQ(appContext.expressionWordRepository->getWords(L"تاوتوێ کردن",
+                                                            ckb),
+              (std::vector<std::wstring>{L"تاوتوێ", L"تاوتوێی", L"کرد",
+                                         L"کردن"}));
+    EXPECT_EQ(appContext.expressionWordRepository->getByWord(L"تاوتوێی", ckb),
+              (std::vector<std::wstring>{L"تاوتوێ کردن"}));
+  }
+
+  EXPECT_TRUE(containsText(page, "تاوتوێ کردن"));
+  EXPECT_TRUE(containsText(page, "to discuss"));
+  EXPECT_FALSE(containsText(page, "discussed water and power"));
+  bool underSentence = false;
+  for (auto *widget : findAll<Wt::WContainerWidget>(page))
+    underSentence = underSentence ||
+                    (widget->hasStyleClass("sentence-expression") &&
+                     containsText(widget, "to discuss"));
+  EXPECT_TRUE(underSentence);
+
+  EXPECT_TRUE(containsText(openWord(app, "کرد"), "to discuss"));
+}
+
+TEST_F(PagesTest, MigrationRemovesClauseLongIdioms) {
+  const auto clause = L"تاوتوێی دەرفەتەکانی هاوکاریی هاوبەش و واژۆکردنی "
+                      L"گرێبەستێکی وەبەرهێنانیان کردووە";
+  {
+    // A version 2 database with an idiom that is a whole clause.
+    AppContext appContext;
+    sqlite::execute(appContext.dbHandler->getConnection(),
+                    "PRAGMA user_version = 2", true);
+    for (const auto *headword : {clause, L"پێم وایە"})
+      appContext.dictionaryRepository->add(
+          db::models::DictionaryEntry{.headword = headword,
+                                      .language = ckb,
+                                      .gloss = L"x",
+                                      .partOfSpeech = L"idiom",
+                                      .source =
+                                          db::models::DictionarySource::Claude,
+                                      .aiGenerated = true});
+    appContext.expressionWordRepository->add({L"تاوتوێی", ckb, clause});
+    appContext.expressionWordRepository->add({L"پێم", ckb, L"پێم وایە"});
+  }
+
+  AppContext appContext;
+  migrateDatabase(appContext);
+  EXPECT_TRUE(appContext.dictionaryRepository->getByHeadword(clause, ckb)
+                  .empty());
+  EXPECT_TRUE(
+      appContext.expressionWordRepository->getByWord(L"تاوتوێی", ckb).empty());
+  EXPECT_EQ(
+      appContext.dictionaryRepository->getByHeadword(L"پێم وایە", ckb).size(),
+      1u);
+  EXPECT_EQ(appContext.expressionWordRepository->getByWord(L"پێم", ckb),
+            (std::vector<std::wstring>{L"پێم وایە"}));
 }

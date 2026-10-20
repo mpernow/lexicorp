@@ -1,5 +1,6 @@
 #include "pages/Migration.h"
 #include "db/Savepoint.h"
+#include "pages/ClaudeLookup.h"
 #include "db/Utils.h"
 #include "pages/Sentences.h"
 #include "processor/TextProcessor.h"
@@ -97,6 +98,26 @@ void migrateToVersion2(AppContext &appContext) {
   for (const auto &text : appContext.textRepository->getAll(kurdish))
     regenerateSentences(appContext, processor, text, text.hash);
 }
+
+// Version 3: Claude "idioms" of more than kMaxExpressionWords words were
+// whole clauses (a compound verb quoted with its object), stored before
+// saveLookup() rejected them. They and their word links are removed.
+void migrateToVersion3(AppContext &appContext) {
+  auto &connection = appContext.dbHandler->getConnection();
+  // Headwords are words joined by single spaces.
+  const std::string tooLong =
+      "source = 'claude' AND part_of_speech = 'idiom' AND "
+      "length(headword) - length(replace(headword, ' ', '')) >= " +
+      std::to_string(kMaxExpressionWords);
+
+  sqlite::execute(connection,
+                  "DELETE FROM expression_word WHERE expression IN "
+                  "(SELECT headword FROM dictionary WHERE " +
+                      tooLong + ")",
+                  true);
+  sqlite::execute(connection, "DELETE FROM dictionary WHERE " + tooLong,
+                  true);
+}
 } // namespace
 
 void migrateDatabase(AppContext &appContext) {
@@ -111,6 +132,8 @@ void migrateDatabase(AppContext &appContext) {
     migrateToVersion1(appContext);
   if (version < 2)
     migrateToVersion2(appContext);
+  if (version < 3)
+    migrateToVersion3(appContext);
   sqlite::execute(connection,
                   "PRAGMA user_version = " + std::to_string(kDatabaseVersion),
                   true);

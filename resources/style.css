@@ -127,7 +127,7 @@ body {
   line-height: 1.6;
   font-size: 15px;
 }
-.source-sentence + .source-sentence {
+.sentence-row + .sentence-row {
   margin-top: 0.5rem;
   padding-top: 0.5rem;
   border-top: var(--bs-border-width) dashed var(--bs-border-color);
@@ -137,6 +137,11 @@ body {
 .source-text:dir(rtl),
 .source-sentence:dir(rtl) {
   line-height: 2.1;
+}
+
+/* An idiom the sentence above contains, with its gloss. */
+.sentence-expression {
+  unicode-bidi: plaintext;
 }
 
 /* Words in the word list: tap to see their sources. */

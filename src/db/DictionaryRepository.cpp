@@ -107,24 +107,35 @@ DictionaryRepository::getForStoredWords(const utils::Language language) {
   return entriesOf(q);
 }
 
-void DictionaryRepository::setManualGloss(const std::wstring &headword,
-                                          const utils::Language language,
-                                          const std::wstring &gloss) {
-  Savepoint tx{mDbConn, "set_manual_gloss"};
+void DictionaryRepository::replaceEntries(
+    const std::wstring &headword, const utils::Language language,
+    const DictionarySource source,
+    const std::vector<models::DictionaryEntry> &entries) {
+  Savepoint tx{mDbConn, "replace_entries"};
 
   sqlite::command remove{mDbConn, "DELETE FROM dictionary WHERE headword = ? "
                                   "AND language = ? AND source = ?"};
   remove % Utils::toUtf8(headword) % utils::to_string(language) %
-      models::to_string(DictionarySource::Manual);
+      models::to_string(source);
   remove();
 
-  if (!gloss.empty())
-    add(models::DictionaryEntry{.headword = headword,
-                                .language = language,
-                                .gloss = gloss,
-                                .source = DictionarySource::Manual});
+  for (auto entry : entries) {
+    entry.headword = headword;
+    entry.language = language;
+    entry.source = source;
+    add(entry);
+  }
 
   tx.commit();
+}
+
+void DictionaryRepository::setManualGloss(const std::wstring &headword,
+                                          const utils::Language language,
+                                          const std::wstring &gloss) {
+  std::vector<models::DictionaryEntry> entries;
+  if (!gloss.empty())
+    entries.push_back(models::DictionaryEntry{.gloss = gloss});
+  replaceEntries(headword, language, DictionarySource::Manual, entries);
 }
 
 } // namespace db

@@ -137,3 +137,22 @@ TEST_F(DictionaryRepositoryTests, WordFormsLookUpTheirLemmas) {
   EXPECT_EQ(stored, (std::vector<std::wstring>{L"left>leave", L"left>left",
                                                L"ran>run"}));
 }
+
+TEST_F(DictionaryRepositoryTests, ReplaceEntriesOnlyReplacesThatSource) {
+  addEntry(L"cat", L"feline", DictionarySource::Wiktionary);
+  addEntry(L"cat", L"old guess", DictionarySource::Claude);
+
+  mDictionary.replaceEntries(
+      L"cat", en, DictionarySource::Claude,
+      {DictionaryEntry{.gloss = L"pet", .aiGenerated = true},
+       DictionaryEntry{.headword = L"ignored", .gloss = L"hunter"}});
+
+  auto entries = mDictionary.getByHeadword(L"cat", en);
+  ASSERT_EQ(entries.size(), 3u);
+  EXPECT_EQ(entries[0].gloss, L"feline");
+  EXPECT_EQ(entries[1].gloss, L"pet");
+  EXPECT_EQ(entries[1].source, DictionarySource::Claude);
+  EXPECT_TRUE(entries[1].aiGenerated);
+  EXPECT_EQ(entries[2].gloss, L"hunter");
+  EXPECT_EQ(entries[2].headword, L"cat");
+}

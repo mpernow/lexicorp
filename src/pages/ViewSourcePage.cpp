@@ -1,4 +1,6 @@
 #include "pages/ViewSourcePage.h"
+#include "pages/Background.h"
+#include "pages/ClaudeLookup.h"
 #include "pages/ConfirmDialog.h"
 #include "pages/EmptyState.h"
 #include "pages/Glosses.h"
@@ -203,7 +205,8 @@ void ViewSourcePage::showWordSources() {
                                           std::to_string(shown) + ")"));
   mHeading->setTextFormat(Wt::TextFormat::Plain);
 
-  showGloss();
+  auto expressions = expressionsOf(*mAppContext, selectedWord);
+  showGloss(expressions);
 
   if (groups.empty()) {
     mTextsContainer->addWidget(makeEmptyState(
@@ -211,7 +214,7 @@ void ViewSourcePage::showWordSources() {
   }
 
   for (const auto &[text, textSentences] : groups)
-    addSentencesBlock(text, textSentences, utf8Word);
+    addSentencesBlock(text, textSentences, utf8Word, expressions);
 }
 
 namespace {
@@ -235,9 +238,24 @@ std::string sourceLabel(const Gloss &gloss) {
     label = "Form of " + db::Utils::toUtf8(gloss.lemma) + " · " + label;
   return label;
 }
+
+// "<expression>: <gloss>", the expression in the sentences' direction.
+void addExpressionLine(Wt::WContainerWidget *parent,
+                       const Expression &expression, const std::string &style) {
+  auto line = parent->addNew<Wt::WContainerWidget>();
+  line->setStyleClass(style);
+  auto words = line->addNew<Wt::WText>(
+      Wt::WString::fromUTF8(db::Utils::toUtf8(expression.expression)),
+      Wt::TextFormat::Plain);
+  words->setAttributeValue("dir", "auto");
+  words->setStyleClass("fw-semibold me-2");
+  line->addNew<Wt::WText>(
+      Wt::WString::fromUTF8(glossSummary(expression.gloss)),
+      Wt::TextFormat::Plain);
+}
 } // namespace
 
-void ViewSourcePage::showGloss() {
+void ViewSourcePage::showGloss(const std::vector<Expression> &expressions) {
   const std::wstring word = mAppContext->selectedWord;
   auto gloss = glossOf(*mAppContext, word);
 
@@ -283,10 +301,61 @@ void ViewSourcePage::showGloss() {
     source->setStyleClass("gloss-source small text-body-secondary mt-1");
   }
 
-  auto editButton = body->addNew<Wt::WPushButton>("Edit gloss");
-  editButton->setStyleClass("btn-sm btn-outline-secondary flex-shrink-0");
+  if (!expressions.empty()) {
+    auto heading = lines->addNew<Wt::WText>("Part of");
+    heading->setInline(false);
+    heading->setStyleClass("small text-body-secondary mt-2");
+    for (const auto &expression : expressions)
+      addExpressionLine(lines, expression, "gloss-line");
+  }
+
+  if (mLookupWord == word && !mLookupMessage.empty()) {
+    auto message = lines->addNew<Wt::WText>(
+        Wt::WString::fromUTF8(mLookupMessage), Wt::TextFormat::Plain);
+    message->setInline(false);
+    message->setStyleClass(mLookupFailed ? "small text-danger mt-1"
+                                         : "small text-body-secondary mt-1");
+  }
+  mLookupMessage.clear();
+
+  auto buttons = body->addNew<Wt::WContainerWidget>();
+  buttons->setStyleClass("d-flex flex-column gap-2 flex-shrink-0");
+  if (!gloss && mAppContext->claudeClient &&
+      mAppContext->selectedLanguage == kClaudeLanguage) {
+    auto askButton = buttons->addNew<Wt::WPushButton>("Ask Claude");
+    askButton->setStyleClass("btn-sm btn-outline-primary busy-button");
+    askButton->setToolTip("Look up this word with Claude (AI-generated, "
+                          "a paid API request)");
+    // Stays disabled, with a spinner, until the answer arrives and the page
+    // is redrawn.
+    askButton->clicked().connect(askButton, &Wt::WWidget::disable);
+    askButton->clicked().connect([this, word] { askClaude(word); });
+  }
+  auto editButton = buttons->addNew<Wt::WPushButton>("Edit gloss");
+  editButton->setStyleClass("btn-sm btn-outline-secondary");
   editButton->clicked().connect(
       [this, word, current] { editGloss(word, current); });
+}
+
+void ViewSourcePage::askClaude(const std::wstring &word) {
+  utils::Language language = mAppContext->selectedLanguage;
+  auto query = wordQuery(*mAppContext, word, language);
+  auto client = mAppContext->claudeClient;
+
+  runInBackground<claude::WordLookup>(
+      [client, query] { return client->defineWord(query); },
+      [this, language, query](claude::WordLookup lookup) {
+        saveLookup(*mAppContext, language, query, lookup);
+
+        mLookupWord = query.word;
+        mLookupFailed = !lookup.error.empty();
+        if (mLookupFailed)
+          mLookupMessage = lookup.error + ".";
+        else if (lookup.senses.empty())
+          mLookupMessage = "Claude doesn't know this word.";
+        if (mAppContext->selectedWord == query.word)
+          refresh();
+      });
 }
 
 void ViewSourcePage::editGloss(const std::wstring &word,
@@ -388,20 +457,30 @@ void ViewSourcePage::addSourceBlock(const db::models::Text &text,
 void ViewSourcePage::addSentencesBlock(
     const db::models::Text &text,
     const std::vector<db::models::Sentence> &sentences,
-    const std::string &utf8Word) {
+    const std::string &utf8Word, const std::vector<Expression> &expressions) {
   auto [card, header] = addSourceCard(text);
   utils::Language language = mAppContext->selectedLanguage;
 
   auto sentenceList = card->addNew<Wt::WContainerWidget>();
   sentenceList->setStyleClass("card-body");
   for (const auto &sentence : sentences) {
-    auto sentenceWidget = sentenceList->addNew<Wt::WText>(
+    auto row = sentenceList->addNew<Wt::WContainerWidget>();
+    row->setStyleClass("sentence-row");
+    auto sentenceWidget = row->addNew<Wt::WText>(
         Wt::WString::fromUTF8(highlightWithBreakIterator(
             toUnicode(sentence.sentence), utf8Word, mTextProcessor, language)),
         Wt::TextFormat::XHTML);
     sentenceWidget->setInline(false);
     sentenceWidget->setStyleClass("source-sentence");
     sentenceWidget->setAttributeValue("dir", "auto");
+
+    if (expressions.empty())
+      continue;
+    auto words = mTextProcessor.words(sentence.sentence, language);
+    for (const auto &expression : expressions)
+      if (containsExpression(words, mAppContext->selectedWord, expression))
+        addExpressionLine(row, expression,
+                          "sentence-expression small text-body-secondary");
   }
 
   // Filled in when first shown.

@@ -18,6 +18,7 @@ private:
     int count;
     bool known;
     std::string gloss; // UTF-8, empty without one
+    bool aiGloss = false;
   };
 
   void buildTable();

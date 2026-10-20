@@ -54,9 +54,12 @@ void DisplayWordsPage::loadData() {
   mRows.clear();
   for (const db::models::Word word : words) {
     auto gloss = glosses.find(word.word);
-    mRows.emplace_back(word.word, word.numOccurrences, word.known,
-                       gloss == glosses.end() ? ""
-                                              : glossSummary(gloss->second));
+    if (gloss == glosses.end())
+      mRows.emplace_back(word.word, word.numOccurrences, word.known, "");
+    else
+      mRows.emplace_back(word.word, word.numOccurrences, word.known,
+                         glossSummary(gloss->second),
+                         gloss->second.entries.front().aiGenerated);
   }
   std::sort(mRows.begin(), mRows.end(), [](const RowData &a, const RowData &b) {
     return a.count > b.count;
@@ -130,6 +133,10 @@ void DisplayWordsPage::buildTable() {
           Wt::WString::fromUTF8(r.gloss), Wt::TextFormat::Plain);
       gloss->setInline(false);
       gloss->setStyleClass("word-gloss small text-body-secondary");
+      if (r.aiGloss) {
+        gloss->addStyleClass("fst-italic");
+        gloss->setToolTip("AI-generated");
+      }
     }
     mWordTable->elementAt(rowCount, 0)->setAttributeValue("dir", "auto");
 
