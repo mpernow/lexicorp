@@ -1,5 +1,6 @@
 #include "pages/ViewSourcePage.h"
 #include "pages/Background.h"
+#include "pages/Bidi.h"
 #include "pages/ClaudeLookup.h"
 #include "pages/ConfirmDialog.h"
 #include "pages/EmptyState.h"
@@ -201,7 +202,7 @@ void ViewSourcePage::showWordSources() {
                    });
 
   mHeading->setText(Wt::WString::fromUTF8("Sentences containing \"" +
-                                          utf8Word + "\" (" +
+                                          isolate(utf8Word) + "\" (" +
                                           std::to_string(shown) + ")"));
   mHeading->setTextFormat(Wt::TextFormat::Plain);
 
@@ -210,7 +211,8 @@ void ViewSourcePage::showWordSources() {
 
   if (groups.empty()) {
     mTextsContainer->addWidget(makeEmptyState(
-        "No stored sentence contains \"" + utf8Word + "\".", false));
+        "No stored sentence contains \"" + isolate(utf8Word) + "\".",
+        false));
   }
 
   for (const auto &[text, textSentences] : groups)
@@ -361,7 +363,7 @@ void ViewSourcePage::askClaude(const std::wstring &word) {
 void ViewSourcePage::editGloss(const std::wstring &word,
                                const std::string &current) {
   auto dialog = addChild(std::make_unique<Wt::WDialog>(Wt::WString::fromUTF8(
-      "Gloss for \"" + db::Utils::toUtf8(word) + "\"")));
+      "Gloss for \"" + isolate(db::Utils::toUtf8(word)) + "\"")));
   dialog->setClosable(true);
   dialog->rejectWhenEscapePressed();
 
@@ -429,7 +431,8 @@ ViewSourcePage::addSourceCard(const db::models::Text &text) {
   std::string source =
       text.source.empty() ? "(no source)" : db::Utils::toUtf8(text.source);
   auto sourceWidget = header->addNew<Wt::WText>(
-      Wt::WString::fromUTF8("Source: " + source), Wt::TextFormat::Plain);
+      Wt::WString::fromUTF8("Source: " + isolate(source)),
+      Wt::TextFormat::Plain);
   sourceWidget->setAttributeValue("dir", "auto");
   sourceWidget->setStyleClass("small text-body-secondary flex-grow-1 "
                               "text-break");
@@ -514,8 +517,9 @@ void ViewSourcePage::confirmDelete(std::int64_t hash,
                                    const std::string &source) {
   confirmDestructive(
       this, "Delete text",
-      (source.empty() ? "Delete this text?"
-                      : "Delete the text from \"" + source + "\"?") +
+      (source.empty()
+           ? "Delete this text?"
+           : "Delete the text from \"" + isolate(source) + "\"?") +
           " Its words' counts are lowered by their occurrences in it, and "
           "words that only appeared in this text are removed unless marked "
           "known.",

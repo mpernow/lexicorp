@@ -522,8 +522,8 @@ TEST_F(PagesTest, SidebarViewSourceListsAllSourcesWithoutHighlight) {
   auto *page = viewSourcePage(app);
   ASSERT_NE(page, nullptr);
   EXPECT_TRUE(containsText(page, "All sources (2)"));
-  EXPECT_TRUE(containsText(page, "Source: first-source"));
-  EXPECT_TRUE(containsText(page, "Source: (no source)"));
+  EXPECT_TRUE(containsText(page, "Source: \u2068first-source\u2069"));
+  EXPECT_TRUE(containsText(page, "Source: \u2068(no source)\u2069"));
   EXPECT_TRUE(anyTextContains(page, "cat sat here"));
   EXPECT_TRUE(anyTextContains(page, "dog ran there"));
   EXPECT_FALSE(anyTextContains(page, "chat assis"));
@@ -548,9 +548,10 @@ TEST_F(PagesTest, TappingWordHighlightsItInSources) {
   EXPECT_EQ(app.internalPath(), "/source/word");
   auto *page = viewSourcePage(app);
   ASSERT_NE(page, nullptr);
-  EXPECT_TRUE(containsText(page, "Sentences containing \"cat\" (1)"));
-  EXPECT_TRUE(containsText(page, "Source: first-source"));
-  EXPECT_FALSE(containsText(page, "Source: second-source"));
+  EXPECT_TRUE(containsText(
+      page, "Sentences containing \"\u2068cat\u2069\" (1)"));
+  EXPECT_TRUE(containsText(page, "Source: \u2068first-source\u2069"));
+  EXPECT_FALSE(containsText(page, "Source: \u2068second-source\u2069"));
   EXPECT_TRUE(anyTextContains(page, "<span class=\"highlight-word\">cat"));
 }
 
@@ -732,8 +733,8 @@ TEST_F(PagesTest, DeletingTextAsksFirstAndLowersWordCounts) {
   findButton(page, "Delete")->clicked().emit(Wt::WMouseEvent());
   answerDialog(app, Wt::StandardButton::Yes);
   EXPECT_TRUE(containsText(page, "All sources (1)"));
-  EXPECT_FALSE(containsText(page, "Source: doomed"));
-  EXPECT_TRUE(containsText(page, "Source: kept"));
+  EXPECT_FALSE(containsText(page, "Source: \u2068doomed\u2069"));
+  EXPECT_TRUE(containsText(page, "Source: \u2068kept\u2069"));
 
   db::DatabaseHandler dbHandler;
   db::WordRepository words{dbHandler.getConnection()};
@@ -825,8 +826,9 @@ TEST_F(PagesTest, WordSourcesShowSentencesAndToggleFullText) {
 
   auto *page = viewSourcePage(app);
   ASSERT_NE(page, nullptr);
-  EXPECT_TRUE(containsText(page, "Sentences containing \"cat\" (3)"));
-  EXPECT_FALSE(containsText(page, "Source: c-source"));
+  EXPECT_TRUE(containsText(
+      page, "Sentences containing \"\u2068cat\u2069\" (3)"));
+  EXPECT_FALSE(containsText(page, "Source: \u2068c-source\u2069"));
 
   // Cards are sorted by source; each lists only its matching sentences.
   auto cards = findAll<Wt::WText>(page);
@@ -838,7 +840,8 @@ TEST_F(PagesTest, WordSourcesShowSentencesAndToggleFullText) {
       sources.push_back(text->text().toUTF8());
   }
   EXPECT_EQ(sources,
-            (std::vector<std::string>{"Source: a-source", "Source: b-source"}));
+            (std::vector<std::string>{"Source: \u2068a-source\u2069",
+                                      "Source: \u2068b-source\u2069"}));
   ASSERT_EQ(sentences.size(), 3u);
   EXPECT_EQ(sentences[0], "A <span class=\"highlight-word\">cat</span>.");
   EXPECT_EQ(sentences[1], "<span class=\"highlight-word\">cat</span> one.");

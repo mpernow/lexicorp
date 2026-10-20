@@ -9,6 +9,7 @@
 #include "pages/ConfirmDialog.h"
 #include "pages/DisplayWordsPage.h"
 #include "pages/EmptyState.h"
+#include "pages/Bidi.h"
 #include "pages/Glosses.h"
 
 DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
@@ -183,7 +184,7 @@ void DisplayWordsPage::confirmDelete(const std::wstring &word) {
   std::string utf8Word = db::Utils::toUtf8(word);
   confirmDestructive(
       this, "Delete word",
-      "Delete \"" + utf8Word +
+      "Delete \"" + isolate(utf8Word) +
           "\" from the word list? The texts it appears in are kept.",
       "Delete", [this, word] { deleteWord(word); });
 }
