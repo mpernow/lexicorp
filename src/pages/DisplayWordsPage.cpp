@@ -3,6 +3,7 @@
 #include <Wt/WCheckBox.h>
 #include <Wt/WContainerWidget.h>
 #include <algorithm>
+#include <unicode/unistr.h>
 
 #include "db/Savepoint.h"
 #include "db/Utils.h"
@@ -11,6 +12,14 @@
 #include "pages/EmptyState.h"
 #include "pages/Bidi.h"
 #include "pages/Glosses.h"
+
+namespace {
+std::string foldCase(const std::string &utf8) {
+  std::string folded;
+  icu::UnicodeString::fromUTF8(utf8).foldCase().toUTF8String(folded);
+  return folded;
+}
+} // namespace
 
 DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
     : mAppContext(appContext) {
@@ -25,8 +34,19 @@ DisplayWordsPage::DisplayWordsPage(std::shared_ptr<AppContext> appContext)
   auto container = addWidget(std::make_unique<Wt::WContainerWidget>());
   container->setStyleClass("main-container");
 
-  mToggleButton = container->addNew<Wt::WPushButton>("Show Unknown Only");
-  mToggleButton->setStyleClass("btn-outline-secondary align-self-start mb-3");
+  mToolbar = container->addNew<Wt::WContainerWidget>();
+  mToolbar->setStyleClass("word-list-toolbar d-flex flex-wrap gap-2 mb-3");
+
+  mSearchEdit = mToolbar->addNew<Wt::WLineEdit>();
+  mSearchEdit->setStyleClass("word-search");
+  mSearchEdit->setPlaceholderText("Search words or glosses");
+  mSearchEdit->setAttributeValue("type", "search");
+  mSearchEdit->setAttributeValue("dir", "auto");
+  mSearchEdit->setAttributeValue("aria-label", "Search words");
+  mSearchEdit->textInput().connect(this, &DisplayWordsPage::updateSearch);
+
+  mToggleButton = mToolbar->addNew<Wt::WPushButton>("Show Unknown Only");
+  mToggleButton->setStyleClass("btn-outline-secondary");
 
   mToggleButton->clicked().connect([this] {
     mShowUnknownOnly = !mShowUnknownOnly;
@@ -55,25 +75,27 @@ void DisplayWordsPage::loadData() {
   mRows.clear();
   for (const db::models::Word word : words) {
     auto gloss = glosses.find(word.word);
-    if (gloss == glosses.end())
+    if (gloss == glosses.end()) {
       mRows.emplace_back(word.word, word.numOccurrences, word.known, "");
-    else
-      mRows.emplace_back(word.word, word.numOccurrences, word.known,
-                         glossSummary(gloss->second),
-                         gloss->second.entries.front().aiGenerated);
+    } else {
+      std::string summary = glossSummary(gloss->second);
+      mRows.emplace_back(word.word, word.numOccurrences, word.known, summary,
+                         gloss->second.entries.front().aiGenerated,
+                         foldCase(summary));
+    }
   }
   std::sort(mRows.begin(), mRows.end(), [](const RowData &a, const RowData &b) {
     return a.count > b.count;
   });
 
-  rebuildRows();
+  updateSearch(); // the query's normalisation depends on the language
 }
 
 void DisplayWordsPage::rebuildRows() {
   mFilteredRows.clear();
 
   for (const auto &r : mRows) {
-    if (!mShowUnknownOnly || !r.known) {
+    if ((!mShowUnknownOnly || !r.known) && matchesSearch(r)) {
       mFilteredRows.push_back(r);
     }
   }
@@ -82,11 +104,37 @@ void DisplayWordsPage::rebuildRows() {
   buildTable();
 }
 
+void DisplayWordsPage::updateSearch() {
+  std::wstring query = mSearchEdit->text().value();
+  // Normalise like stored words, so case, punctuation and Kurdish letter
+  // variants don't matter.
+  mWordQuery.clear();
+  for (const auto &word :
+       mTextProcessor.words(query, mAppContext->selectedLanguage)) {
+    if (!mWordQuery.empty())
+      mWordQuery += L' ';
+    mWordQuery += word;
+  }
+  mGlossQuery = foldCase(mSearchEdit->text().toUTF8());
+  if (mGlossQuery.find_first_not_of(" \t") == std::string::npos)
+    mGlossQuery.clear();
+  rebuildRows();
+}
+
+bool DisplayWordsPage::matchesSearch(const RowData &row) const {
+  if (mWordQuery.empty() && mGlossQuery.empty())
+    return true;
+  return (!mWordQuery.empty() &&
+          row.word.find(mWordQuery) != std::wstring::npos) ||
+         (!mGlossQuery.empty() &&
+          row.foldedGloss.find(mGlossQuery) != std::string::npos);
+}
+
 void DisplayWordsPage::buildTable() {
   mWordTable->clear();
   mEmptyState->clear();
 
-  mToggleButton->setHidden(mRows.empty());
+  mToolbar->setHidden(mRows.empty());
   mWordTable->setHidden(mFilteredRows.empty());
   if (mRows.empty()) {
     mEmptyState->addWidget(makeEmptyState(
@@ -96,8 +144,15 @@ void DisplayWordsPage::buildTable() {
     return;
   }
   if (mFilteredRows.empty()) {
-    mEmptyState->addWidget(
-        makeEmptyState("No unknown words left — you know them all!", false));
+    if (!mWordQuery.empty() || !mGlossQuery.empty())
+      mEmptyState->addWidget(makeEmptyState(
+          "No " + std::string(mShowUnknownOnly ? "unknown " : "") +
+              "words match \"" + isolate(mSearchEdit->text().toUTF8()) +
+              "\".",
+          false));
+    else
+      mEmptyState->addWidget(makeEmptyState(
+          "No unknown words left — you know them all!", false));
     return;
   }
 

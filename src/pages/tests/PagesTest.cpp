@@ -315,7 +315,8 @@ TEST_F(PagesTest, WordListShowsEmptyStateWithoutWords) {
   ASSERT_NE(page, nullptr);
   EXPECT_TRUE(anyTextContains(page, "No English words yet."));
   EXPECT_TRUE(findOne<Wt::WTable>(page)->isHidden());
-  EXPECT_TRUE(findButton(page, "Show Unknown Only")->isHidden());
+  EXPECT_FALSE(findButton(page, "Show Unknown Only")->isVisible());
+  EXPECT_FALSE(findOne<Wt::WLineEdit>(page)->isVisible());
 }
 
 TEST_F(PagesTest, WordListShowsEmptyStateWhenAllWordsKnown) {
@@ -336,6 +337,48 @@ TEST_F(PagesTest, WordListShowsEmptyStateWhenAllWordsKnown) {
   findButton(page, "Show Unknown Only")->clicked().emit(Wt::WMouseEvent());
   EXPECT_TRUE(anyTextContains(page, "you know them all"));
   EXPECT_TRUE(findOne<Wt::WTable>(page)->isHidden());
+}
+
+TEST_F(PagesTest, WordListSearchFiltersWordsAndGlosses) {
+  for (const auto *word : {L"cat", L"catch", L"dog"})
+    addWord(word, utils::Language::English);
+  {
+    AppContext appContext;
+    appContext.dictionaryRepository->add(db::models::DictionaryEntry{
+        .headword = L"dog",
+        .language = utils::Language::English,
+        .gloss = L"Canine",
+        .partOfSpeech = L"noun",
+        .source = db::models::DictionarySource::Manual});
+  }
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  app.setInternalPath("/list", true);
+  auto *page = findOne<DisplayWordsPage>(app.root());
+  auto *search = findOne<Wt::WLineEdit>(page);
+  ASSERT_NE(search, nullptr);
+  auto searchFor = [&](const std::string &query) {
+    search->setText(Wt::WString::fromUTF8(query));
+    search->textInput().emit();
+  };
+
+  searchFor("CAT");
+  EXPECT_NE(findButton(page, "cat"), nullptr);
+  EXPECT_NE(findButton(page, "catch"), nullptr);
+  EXPECT_EQ(findButton(page, "dog"), nullptr);
+
+  searchFor("canine");
+  EXPECT_EQ(findButton(page, "cat"), nullptr);
+  EXPECT_NE(findButton(page, "dog"), nullptr);
+
+  searchFor("zebra");
+  EXPECT_TRUE(findOne<Wt::WTable>(page)->isHidden());
+  EXPECT_TRUE(anyTextContains(page, "No words match"));
+
+  searchFor("");
+  EXPECT_NE(findButton(page, "cat"), nullptr);
+  EXPECT_NE(findButton(page, "dog"), nullptr);
 }
 
 TEST_F(PagesTest, ViewSourceShowsEmptyStateWithoutTexts) {

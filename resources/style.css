@@ -170,6 +170,12 @@ body {
   margin-top: 0.25rem;
 }
 
+/* Word list search box: fills the toolbar row, next to the toggle. */
+.word-search {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
 /* Bigger tap targets for the per-word switches and checkboxes. */
 .known-switch {
   margin: 0;
