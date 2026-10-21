@@ -2,3 +2,5 @@ build/
 *.db
 *.jsonl
 __pycache__
+pdfs/
+grammar/

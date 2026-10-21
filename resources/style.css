@@ -144,6 +144,62 @@ body {
   unicode-bidi: plaintext;
 }
 
+/* "Explain" under a sentence, and Claude's explanation of it. */
+.explain-button {
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+.explanation {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border-radius: var(--bs-border-radius);
+  background-color: var(--bs-tertiary-bg);
+  font-size: 0.875rem;
+}
+.explanation-translation {
+  font-style: italic;
+  margin-bottom: 0.5rem;
+}
+/* One column per word, wrapping on narrow screens: the word, its Leipzig
+   gloss, its base form. */
+.interlinear {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.interlinear-word {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.interlinear-surface {
+  font-size: 15px;
+  line-height: 2;
+}
+.interlinear-leipzig {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.75rem;
+}
+.interlinear-base {
+  font-size: 0.75rem;
+}
+.explanation-heading {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.explanation-line + .explanation-line {
+  margin-top: 0.25rem;
+}
+.explanation-sections {
+  font-size: 0.75rem;
+}
+.explanation-source {
+  margin-top: 0.75rem;
+}
+
 /* Words in the word list: tap to see their sources. */
 .word-link {
   padding: 0.25rem 0;

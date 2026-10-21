@@ -35,6 +35,11 @@ private:
                          const std::vector<db::models::Sentence> &sentences,
                          const std::string &utf8Word,
                          const std::vector<Expression> &expressions);
+  // An Explain button under the sentence. The first time, Claude explains
+  // it in the background and the answer is stored; after that the stored
+  // explanation is shown, and the button shows or hides it.
+  void addExplanation(Wt::WContainerWidget *row,
+                      const db::models::Sentence &sentence);
   // The selected word's gloss and the expressions it is part of, with an
   // Edit button, and an Ask Claude button while it has no gloss.
   void showGloss(const std::vector<Expression> &expressions);

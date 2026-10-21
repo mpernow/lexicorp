@@ -61,7 +61,10 @@ External libs are expected to be installed on the system: **Wt 4.12.1**, Boost,
 `Wt::Http::Client` can't do HTTPS), plus CMake ≥ 3.21 and a C++23 compiler
 (g++ 13.3). Two deps are fetched at configure time via `FetchContent`:
 **GoogleTest** and **vsqlite++** (the C++ SQLite wrapper, imported as
-`vsqlite::vsqlitepp`). See `README.md` for install commands.
+`vsqlite::vsqlitepp`). See `README.md` for install commands. The Python
+scripts in `tools/` take theirs from the `Pipfile` (`pipenv sync`, then
+`pipenv run python tools/...`); `import_wiktionary.py` stays stdlib-only so
+it runs on the Pi without them.
 
 ## Architecture
 
@@ -74,15 +77,16 @@ headers in `src/<lib>/include/<lib>/`.
   persisted as their string name, never as the enum ordinal.
 
 - **db** — persistence. `DatabaseHandler` owns one `sqlite::connection`.
-  Nine repositories (`WordRepository`, `TextRepository`, `WordTextRepository`,
+  Ten repositories (`WordRepository`, `TextRepository`, `WordTextRepository`,
   `SentenceRepository`, `WordSentenceRepository`, `DictionaryRepository`,
   `WordFormRepository`, `ExpressionWordRepository`, `ClaudeUsageRepository`,
-  each behind an
+  `ExplanationRepository`, each behind an
   `I*Repository` interface) take that connection by reference and
   **create their own table in the constructor**. Model structs live in
   `db/*.h` (`models::Word`, `models::Text`, `models::WordText`,
   `models::Sentence`, `models::WordSentence`, `models::DictionaryEntry`,
-  `models::WordForm`, `models::ExpressionWord`, `models::ClaudeUsage`); each
+  `models::WordForm`, `models::ExpressionWord`, `models::ClaudeUsage`,
+  `models::Explanation`); each
   satisfies
   the `db::Utils::IsDbModel` concept by exposing `static tableName` and
   `static schema()`, and `Utils::createTableSql<T>()` turns that into a
@@ -125,6 +129,19 @@ headers in `src/<lib>/include/<lib>/`.
   feature is hidden) and `LEXICORP_CLAUDE_MODEL` (default
   `claude-sonnet-5-5`). `pricingFor` holds per-model prices for the Home
   page's cost estimate; add a model there when switching to it.
+  `explainSentence` sends a sentence, with its neighbours
+  as context, and returns a translation, per-word morphemes and Leipzig
+  glosses, constructions and notes citing grammar reference sections
+  (`explainSentenceRequest` / `parseExplainSentenceResponse`, effort
+  `medium`). The system prompt is the grammar reference followed by
+  `prompts/explain_sentence.md`, cached together. The reference
+  (`GrammarReference`, `<section id="…">` blocks; ids in
+  `prompts/grammar_outline.md`) is derived from copyrighted books, so it is
+  read from `LEXICORP_GRAMMAR_FILE` at startup, not compiled in; without it
+  `canExplain()` is false. The schema restricts cited sections to the
+  reference's ids. `SentenceExplanation::answerJson` is what gets cached;
+  `explanationFromJson` reads it back. Model: `LEXICORP_CLAUDE_EXPLAIN_MODEL`
+  (default: the lookup model).
 
 - **pages** — one `Wt::WContainerWidget` subclass per screen.
   `LexiCorpMain` (`Wt::WApplication`) builds the shell: a sidebar with a
@@ -139,7 +156,17 @@ headers in `src/<lib>/include/<lib>/`.
   that marks those sentences in the whole text, under the word's gloss and
   an "Edit gloss" dialog, plus "Ask Claude" for a Kurdish word without a
   gloss; idioms the word is part of are listed in the gloss card and under
-  each sentence containing them).
+  each sentence containing them; each Kurdish sentence has an "Explain"
+  button while `canExplain()`).
+  Explanations (`pages/Explanations.h`): the first click asks Claude in the
+  background (with the sentences before and after it as context) and stores
+  the answer in `explanation` under `sentenceHash()`, so the same sentence
+  in any text reuses it; later clicks show / hide the stored one. The
+  result is rendered interlinear (word, Leipzig gloss, base form), then the
+  parts of each word (affixes with a tatweel on their joining side),
+  constructions and notes with their cited section ids. The answer's
+  widgets are held through `Wt::Core::observing_ptr`, since the page can be
+  redrawn before it arrives.
   Glosses (`pages/Glosses.h`): a word's entries from the preferred
   `DictionarySource` (manual > Wiktionary > Claude > Google), or, without
   entries of its own, those of a lemma it is a form of (`word_form`).
@@ -239,6 +266,9 @@ headers in `src/<lib>/include/<lib>/`.
   word of an idiom to it, in every form seen. The idiom's gloss is a
   `dictionary` entry whose headword is its dictionary form's normalised words
   joined by single spaces.
+- `explanation` — `sentence_hash` (`TextProcessor::hashWstring` of the
+  sentence) PRIMARY KEY, the sentence, Claude's answer as JSON, the model,
+  `created_at`. Saving again replaces it.
 - `claude_usage` — one row per Claude API request: `created_at`, `model`,
   `purpose`, input / output / cache-read / cache-creation tokens. The Home
   page shows this month's total (UTC) and an estimated cost.
@@ -249,6 +279,15 @@ earlier rows; the data file stays out of git (`*.jsonl` is ignored). It
 re-implements the word normalisation in Python, so a change to
 `kKurdishLetterRules` or the punctuation handling in `TextProcessor` must be
 mirrored there.
+
+The grammar reference for "Explain" is built from the PDFs in `pdfs/` in two
+steps, both through the Claude API and both writing to the ignored
+`grammar/` directory: `tools/grammar_notes.py` turns each chapter (a table
+of PDF page ranges) into faithful notes, reading the Kurdish from page
+images since the PDFs' text layers garble it; `tools/grammar_merge.py`
+writes one section per entry of `prompts/grammar_outline.md` from all the
+notes and assembles `grammar/reference.md`, the file `LEXICORP_GRAMMAR_FILE`
+names. The outline's ids are what explanations cite, so keep them stable.
 
 The typical flow: `InsertTextPage` runs `TextProcessor::extractSentences`,
 lets the user pick which words to keep and mark as known, then writes rows to

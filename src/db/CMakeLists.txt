@@ -9,6 +9,7 @@ add_library(db
     WordFormRepository.cpp
     ExpressionWordRepository.cpp
     ClaudeUsageRepository.cpp
+    ExplanationRepository.cpp
 )
 
 include(FetchContent)

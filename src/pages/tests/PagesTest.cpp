@@ -6,6 +6,7 @@
 #include "pages/AppContext.h"
 #include "pages/Background.h"
 #include "pages/DisplayWordsPage.h"
+#include "pages/Explanations.h"
 #include "pages/InsertTextPage.h"
 #include "pages/HomePage.h"
 #include "pages/LexiCorpMain.h"
@@ -1145,8 +1146,19 @@ public:
     return mAnswer;
   }
 
+  claude::SentenceExplanation
+  explainSentence(const claude::SentenceQuery &query) override {
+    mSentenceQueries.push_back(query);
+    return mExplanation;
+  }
+
+  bool canExplain() const override { return mCanExplain; }
+
   claude::WordLookup mAnswer;
   std::vector<claude::WordQuery> mQueries;
+  claude::SentenceExplanation mExplanation;
+  std::vector<claude::SentenceQuery> mSentenceQueries;
+  bool mCanExplain = false;
 };
 
 std::shared_ptr<FakeClaudeClient> useFakeClaude(claude::WordLookup answer) {
@@ -1377,4 +1389,179 @@ TEST_F(PagesTest, MigrationRemovesClauseLongIdioms) {
       1u);
   EXPECT_EQ(appContext.expressionWordRepository->getByWord(L"پێم", ckb),
             (std::vector<std::wstring>{L"پێم وایە"}));
+}
+
+namespace {
+// A Claude explanation of "کتێبەکەم خوێندەوە.", as the fake client returns it.
+claude::SentenceExplanation bookExplanation() {
+  auto explanation = claude::explanationFromJson(R"({
+    "translation": "I read the book.",
+    "words": [{"surface": "کتێبەکەم", "base_form": "کتێب",
+               "base_gloss": "book",
+               "morphemes": [
+                 {"form": "کتێب", "kind": "stem", "function": "book"},
+                 {"form": "ەکە", "kind": "suffix", "function": "definite"},
+                 {"form": "م", "kind": "clitic", "function": "1sg agent"}],
+               "leipzig": "book-DEF=1SG"},
+              {"surface": "خوێندەوە", "base_form": "خوێندنەوە",
+               "base_gloss": "to read", "morphemes": [],
+               "leipzig": "read.PST"}],
+    "constructions": [],
+    "notes": [{"text": "The -م is the agent, not 'my'.",
+               "sections": ["clitics.agent"]}]
+  })");
+  explanation.usage = claude::Usage{.model = "claude-sonnet-5-5",
+                                    .inputTokens = 30000,
+                                    .outputTokens = 800};
+  return explanation;
+}
+
+const std::wstring kBookText =
+    L"ڕۆژی شەممە بوو.\nکتێبەکەم خوێندەوە.\nزۆر خۆش بوو.";
+
+// The explanation panel under a sentence, if one is shown.
+Wt::WContainerWidget *shownExplanation(Wt::WWidget *page) {
+  for (auto *widget : findAll<Wt::WContainerWidget>(page))
+    if (widget->hasStyleClass("explanation") && widget->isVisible())
+      return widget;
+  return nullptr;
+}
+} // namespace
+
+TEST_F(PagesTest, ExplainNeedsTheGrammarReferenceAndKurdish) {
+  addText(L"The cat sat.", 1, L"src", utils::Language::English, L"cat");
+  addWord(L"cat", utils::Language::English);
+  addText(kBookText, 2, L"src", ckb, L"کتێبەکەم");
+  addWord(L"کتێبەکەم", ckb);
+
+  {
+    // Without an API key there is no button.
+    Wt::Test::WTestEnvironment env;
+    LexiCorpMain app{env};
+    selectLanguage(app, "Kurdish");
+    EXPECT_EQ(findButton(openWord(app, "کتێبەکەم"), "Explain"), nullptr);
+  }
+  {
+    // Nor without the grammar reference.
+    useFakeClaude({});
+    Wt::Test::WTestEnvironment env;
+    LexiCorpMain app{env};
+    selectLanguage(app, "Kurdish");
+    EXPECT_EQ(findButton(openWord(app, "کتێبەکەم"), "Explain"), nullptr);
+  }
+
+  useFakeClaude({})->mCanExplain = true;
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  EXPECT_EQ(findButton(openWord(app, "cat"), "Explain"), nullptr);
+  selectLanguage(app, "Kurdish");
+  EXPECT_NE(findButton(openWord(app, "کتێبەکەم"), "Explain"), nullptr);
+}
+
+TEST_F(PagesTest, ExplainShowsStoresAndReusesTheExplanation) {
+  addText(kBookText, 1, L"src", ckb, L"کتێبەکەم");
+  addWord(L"کتێبەکەم", ckb);
+  auto client = useFakeClaude({});
+  client->mCanExplain = true;
+  client->mExplanation = bookExplanation();
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  selectLanguage(app, "Kurdish");
+  auto *page = openWord(app, "کتێبەکەم");
+  EXPECT_EQ(shownExplanation(page), nullptr);
+  findButton(page, "Explain")->clicked().emit(Wt::WMouseEvent());
+
+  // The sentence goes with its neighbours.
+  ASSERT_EQ(client->mSentenceQueries.size(), 1u);
+  EXPECT_EQ(client->mSentenceQueries[0].sentence, L"کتێبەکەم خوێندەوە.");
+  EXPECT_EQ(client->mSentenceQueries[0].before, L"ڕۆژی شەممە بوو.");
+  EXPECT_EQ(client->mSentenceQueries[0].after, L"زۆر خۆش بوو.");
+
+  auto *explanation = shownExplanation(page);
+  ASSERT_NE(explanation, nullptr);
+  EXPECT_TRUE(containsText(explanation, "I read the book."));
+  EXPECT_TRUE(containsText(explanation, "book-DEF=1SG"));
+  EXPECT_TRUE(containsText(explanation, "Parts"));
+  // Affixes shown with a tatweel on their joining side.
+  EXPECT_TRUE(anyTextContains(explanation, "ـەکە⁩ (definite)"));
+  EXPECT_TRUE(anyTextContains(explanation, "ـم⁩ (1sg agent)"));
+  EXPECT_TRUE(containsText(explanation, "The -م is the agent, not 'my'."));
+  EXPECT_TRUE(containsText(explanation, " (clitics.agent)"));
+  EXPECT_TRUE(
+      containsText(explanation, "Claude (AI-generated) · claude-sonnet-5-5"));
+  auto *button = findButton(page, "Hide explanation");
+  ASSERT_NE(button, nullptr);
+  EXPECT_TRUE(button->isEnabled());
+
+  {
+    AppContext appContext;
+    processor::TextProcessor processor;
+    auto stored = appContext.explanationRepository->get(
+        sentenceHash(processor, L"کتێبەکەم خوێندەوە."));
+    ASSERT_TRUE(stored);
+    EXPECT_EQ(stored->answerJson, client->mExplanation.answerJson);
+    EXPECT_EQ(stored->model, "claude-sonnet-5-5");
+    auto usage = appContext.claudeUsageRepository->totalsSince(0);
+    ASSERT_EQ(usage.size(), 1u);
+    EXPECT_EQ(usage[0].inputTokens, 30000);
+  }
+
+  // The button hides and shows it again.
+  button->clicked().emit(Wt::WMouseEvent());
+  EXPECT_EQ(shownExplanation(page), nullptr);
+  button = findButton(page, "Show explanation");
+  ASSERT_NE(button, nullptr);
+  button->clicked().emit(Wt::WMouseEvent());
+  EXPECT_NE(shownExplanation(page), nullptr);
+
+  // Redrawn, it comes from the database, without asking Claude again.
+  page = openWord(app, "کتێبەکەم");
+  EXPECT_EQ(shownExplanation(page), nullptr);
+  findButton(page, "Show explanation")->clicked().emit(Wt::WMouseEvent());
+  explanation = shownExplanation(page);
+  ASSERT_NE(explanation, nullptr);
+  EXPECT_TRUE(containsText(explanation, "I read the book."));
+  EXPECT_EQ(client->mSentenceQueries.size(), 1u);
+}
+
+TEST_F(PagesTest, ExplainShowsErrors) {
+  addText(kBookText, 1, L"src", ckb, L"کتێبەکەم");
+  addWord(L"کتێبەکەم", ckb);
+  auto client = useFakeClaude({});
+  client->mCanExplain = true;
+  // A refusal is billed, so its usage is kept.
+  client->mExplanation = claude::SentenceExplanation{
+      .usage = claude::Usage{.model = "claude-sonnet-5-5", .inputTokens = 100},
+      .error = "Claude declined to answer"};
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  selectLanguage(app, "Kurdish");
+  auto *page = openWord(app, "کتێبەکەم");
+  findButton(page, "Explain")->clicked().emit(Wt::WMouseEvent());
+
+  EXPECT_TRUE(containsText(page, "Claude declined to answer."));
+  EXPECT_EQ(shownExplanation(page), nullptr);
+  auto *button = findButton(page, "Explain");
+  ASSERT_NE(button, nullptr);
+  EXPECT_TRUE(button->isEnabled());
+  {
+    AppContext appContext;
+    processor::TextProcessor processor;
+    EXPECT_FALSE(appContext.explanationRepository->get(
+        sentenceHash(processor, L"کتێبەکەم خوێندەوە.")));
+    EXPECT_EQ(appContext.claudeUsageRepository->totalsSince(0).size(), 1u);
+  }
+
+  // Trying again asks again.
+  client->mExplanation = bookExplanation();
+  button->clicked().emit(Wt::WMouseEvent());
+  EXPECT_EQ(client->mSentenceQueries.size(), 2u);
+  EXPECT_NE(shownExplanation(page), nullptr);
+  bool errorShown = false;
+  for (auto *text : findAll<Wt::WText>(page))
+    errorShown = errorShown || (text->text() == "Claude declined to answer." &&
+                                text->isVisible());
+  EXPECT_FALSE(errorShown);
 }

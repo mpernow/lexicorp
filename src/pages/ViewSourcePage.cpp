@@ -4,12 +4,14 @@
 #include "pages/ClaudeLookup.h"
 #include "pages/ConfirmDialog.h"
 #include "pages/EmptyState.h"
+#include "pages/Explanations.h"
 #include "pages/Glosses.h"
 #include "db/Savepoint.h"
 #include "db/Sentence.h"
 #include "db/Text.h"
 #include "db/Utils.h"
 #include "db/WordText.h"
+#include <Wt/Core/observing_ptr.hpp>
 #include <Wt/WApplication.h>
 #include <Wt/WBreak.h>
 #include <Wt/WDialog.h>
@@ -464,6 +466,10 @@ void ViewSourcePage::addSentencesBlock(
   auto [card, header] = addSourceCard(text);
   utils::Language language = mAppContext->selectedLanguage;
 
+  auto client = mAppContext->claudeClient;
+  bool explain =
+      client && client->canExplain() && language == kClaudeLanguage;
+
   auto sentenceList = card->addNew<Wt::WContainerWidget>();
   sentenceList->setStyleClass("card-body");
   for (const auto &sentence : sentences) {
@@ -477,13 +483,15 @@ void ViewSourcePage::addSentencesBlock(
     sentenceWidget->setStyleClass("source-sentence");
     sentenceWidget->setAttributeValue("dir", "auto");
 
-    if (expressions.empty())
-      continue;
-    auto words = mTextProcessor.words(sentence.sentence, language);
-    for (const auto &expression : expressions)
-      if (containsExpression(words, mAppContext->selectedWord, expression))
-        addExpressionLine(row, expression,
-                          "sentence-expression small text-body-secondary");
+    if (!expressions.empty()) {
+      auto words = mTextProcessor.words(sentence.sentence, language);
+      for (const auto &expression : expressions)
+        if (containsExpression(words, mAppContext->selectedWord, expression))
+          addExpressionLine(row, expression,
+                            "sentence-expression small text-body-secondary");
+    }
+    if (explain)
+      addExplanation(row, sentence);
   }
 
   // Filled in when first shown.
@@ -510,6 +518,83 @@ void ViewSourcePage::addSentencesBlock(
     fullText->setHidden(!showFull);
     sentenceList->setHidden(showFull);
     togglePtr->setText(showFull ? "Show sentences" : "Show full text");
+  });
+}
+
+namespace {
+void showExplanation(Wt::WContainerWidget *panel, Wt::WPushButton *button,
+                     const claude::SentenceExplanation &explanation,
+                     const std::string &model) {
+  panel->addWidget(explanationWidget(explanation, model));
+  panel->show();
+  button->setText("Hide explanation");
+  button->setToolTip("");
+}
+} // namespace
+
+void ViewSourcePage::addExplanation(Wt::WContainerWidget *row,
+                                    const db::models::Sentence &sentence) {
+  auto hash = sentenceHash(mTextProcessor, sentence.sentence);
+  bool stored = mAppContext->explanationRepository->get(hash).has_value();
+
+  auto button =
+      row->addNew<Wt::WPushButton>(stored ? "Show explanation" : "Explain");
+  button->setStyleClass("btn-sm btn-link p-0 explain-button busy-button");
+  if (!stored)
+    button->setToolTip("Explain this sentence with Claude (AI-generated, "
+                       "a paid API request)");
+  auto error = row->addNew<Wt::WText>();
+  error->setTextFormat(Wt::TextFormat::Plain);
+  error->setInline(false);
+  error->setStyleClass("small text-danger");
+  error->hide();
+  auto panel = row->addNew<Wt::WContainerWidget>();
+  panel->hide();
+
+  // Disabled, with a spinner, as soon as it is clicked: re-enabled at once
+  // unless Claude is asked, then when the answer arrives.
+  button->clicked().connect(button, &Wt::WWidget::disable);
+  button->clicked().connect([this, button, error, panel, sentence, hash] {
+    error->hide();
+    if (panel->count() > 0) {
+      button->enable();
+      panel->setHidden(!panel->isHidden());
+      button->setText(panel->isHidden() ? "Show explanation"
+                                        : "Hide explanation");
+      return;
+    }
+    // Possibly explained since the page was drawn, e.g. in another text.
+    if (auto stored = mAppContext->explanationRepository->get(hash)) {
+      auto explanation = claude::explanationFromJson(stored->answerJson);
+      if (explanation.error.empty()) {
+        button->enable();
+        showExplanation(panel, button, explanation, stored->model);
+        return;
+      }
+    }
+
+    auto query = sentenceQuery(*mAppContext, sentence);
+    auto client = mAppContext->claudeClient;
+    // The page may be redrawn before the answer arrives.
+    Wt::Core::observing_ptr<Wt::WPushButton> buttonPtr = button;
+    Wt::Core::observing_ptr<Wt::WText> errorPtr = error;
+    Wt::Core::observing_ptr<Wt::WContainerWidget> panelPtr = panel;
+    runInBackground<claude::SentenceExplanation>(
+        [client, query] { return client->explainSentence(query); },
+        [this, query, hash, buttonPtr, errorPtr,
+         panelPtr](claude::SentenceExplanation explanation) {
+          saveExplanation(*mAppContext, hash, query, explanation);
+          if (!buttonPtr || !errorPtr || !panelPtr)
+            return;
+          buttonPtr->enable();
+          if (!explanation.error.empty()) {
+            errorPtr->setText(Wt::WString::fromUTF8(explanation.error + "."));
+            errorPtr->show();
+            return;
+          }
+          showExplanation(panelPtr.get(), buttonPtr.get(), explanation,
+                          explanation.usage ? explanation.usage->model : "");
+        });
   });
 }
 

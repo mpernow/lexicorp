@@ -40,6 +40,11 @@ Tests are implemented using Google Test. They are run with `ctest --preset <rele
 - libcurl (for the Claude API): `sudo apt install libcurl4-openssl-dev`
 - OpenSSL 3.0.13
 
+The Python scripts in `tools/` have their own dependencies, in the `Pipfile`
+(`sudo apt install pipenv`): run `pipenv sync` once, then e.g.
+`pipenv run python tools/grammar_notes.py --list`. `tools/import_wiktionary.py`
+needs only the standard library, so the Pi doesn't need them.
+
 # Deployment
 
 On the server (e.g. a Raspberry Pi), the app runs as a systemd service under its own user, with the binary and `resources/` in `/opt/lexicorp` and the database in `/var/lib/lexicorp`. One-time setup:
@@ -78,6 +83,8 @@ Run `sudo systemctl daemon-reload`, then `./deploy.sh` to build and install, the
 
 With an API key, a Kurdish word without a gloss gets an "Ask Claude" button on its sources page. The answer (glosses, plus any idioms the word is part of in its sentences) is stored as AI-generated dictionary entries, and the Home page shows this month's requests and their estimated cost. Without a key the button doesn't appear.
 
+With the grammar reference too (`LEXICORP_GRAMMAR_FILE`), each Kurdish sentence on that page gets an "Explain" button: a translation, every word glossed interlinear and split into its parts, and notes on the grammar, citing the reference's sections. Explanations are stored, so a sentence is paid for once.
+
 Create a key in the Claude Console (set a monthly spend limit there), then on the server:
 
 ```
@@ -92,11 +99,17 @@ with
 ANTHROPIC_API_KEY=sk-ant-...
 # Optional; the default is claude-sonnet-5-5.
 LEXICORP_CLAUDE_MODEL=claude-sonnet-5-5
+# Optional: the "Explain" button on Kurdish sentences needs the grammar
+# reference built from the grammar books (see TODO.md), readable by the
+# lexicorp user.
+LEXICORP_GRAMMAR_FILE=/var/lib/lexicorp/grammar.md
+# Optional; the default is LEXICORP_CLAUDE_MODEL.
+LEXICORP_CLAUDE_EXPLAIN_MODEL=claude-sonnet-5-5
 ```
 
 and restart the service. systemd reads the file as root, so the `lexicorp` user can't. Locally, export the same variables before `cmake --build build/debug --target run`.
 
-The prompt is `prompts/define_word.md`; it is compiled into the binary, so rebuild after editing it.
+The prompts are `prompts/define_word.md` and `prompts/explain_sentence.md`; they are compiled into the binary, so rebuild after editing them. The grammar reference isn't (it is derived from copyrighted books), so it stays out of git and is read at startup.
 
 To deploy updates, run `./deploy.sh` from the repo on the server. It pulls, builds, runs the tests, backs up the database, installs to `/opt/lexicorp` and restarts the service.
 

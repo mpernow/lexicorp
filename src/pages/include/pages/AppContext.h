@@ -5,6 +5,7 @@
 #include "db/ClaudeUsageRepository.h"
 #include "db/DatabaseHandler.h"
 #include "db/DictionaryRepository.h"
+#include "db/ExplanationRepository.h"
 #include "db/ExpressionWordRepository.h"
 #include "db/SentenceRepository.h"
 #include "db/TextRepository.h"
@@ -37,6 +38,8 @@ public:
         dbHandler->getConnection());
     claudeUsageRepository =
         std::make_shared<db::ClaudeUsageRepository>(dbHandler->getConnection());
+    explanationRepository =
+        std::make_shared<db::ExplanationRepository>(dbHandler->getConnection());
   }
 
   // The client every session uses, set by main() when an API key is
@@ -59,5 +62,6 @@ public:
   std::shared_ptr<db::WordFormRepository> wordFormRepository;
   std::shared_ptr<db::ExpressionWordRepository> expressionWordRepository;
   std::shared_ptr<db::ClaudeUsageRepository> claudeUsageRepository;
+  std::shared_ptr<db::ExplanationRepository> explanationRepository;
   std::shared_ptr<claude::IClaudeClient> claudeClient = sharedClaudeClient;
 };

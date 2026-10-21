@@ -8,6 +8,7 @@ add_library(pages
     Migration.cpp
     Glosses.cpp
     ClaudeLookup.cpp
+    Explanations.cpp
 )
 
 target_include_directories(pages

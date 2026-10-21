@@ -1,0 +1,18 @@
+# Python dependencies of the scripts in tools/ (the app itself is C++).
+# tools/import_wiktionary.py needs only the standard library, so the Pi
+# can run it without these.
+
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+anthropic = "*"  # tools/grammar_notes.py
+pillow = "*"  # tools/make_icons.py
+fonttools = {extras = ["woff"], version = "*"}  # woff2 subsets in resources/fonts/
+
+[dev-packages]
+
+[requires]
+python_version = "3.12"

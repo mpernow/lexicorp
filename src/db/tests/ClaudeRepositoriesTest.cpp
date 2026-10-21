@@ -1,5 +1,6 @@
 #include "db/ClaudeUsageRepository.h"
 #include "db/DatabaseHandler.h"
+#include "db/ExplanationRepository.h"
 #include "db/ExpressionWordRepository.h"
 #include "utils/Language.h"
 #include <gtest/gtest.h>
@@ -15,6 +16,7 @@ protected:
   db::DatabaseHandler mDbHandler{":memory:"};
   db::ClaudeUsageRepository mUsage{mDbHandler.getConnection()};
   db::ExpressionWordRepository mExpressions{mDbHandler.getConnection()};
+  db::ExplanationRepository mExplanations{mDbHandler.getConnection()};
 
   void addUsage(const std::string &model, std::int64_t input,
                 std::int64_t output) {
@@ -68,4 +70,48 @@ TEST_F(ClaudeRepositoriesTests, ExpressionLinksAreUnique) {
   EXPECT_EQ(mExpressions.getByWord(L"وایە", ckb),
             (std::vector<std::wstring>{L"پێم وایە"}));
   EXPECT_TRUE(mExpressions.getByWord(L"پێم", utils::Language::English).empty());
+}
+
+TEST_F(ClaudeRepositoriesTests, ExplanationsAreStoredBySentenceHash) {
+  EXPECT_FALSE(mExplanations.get(42));
+
+  mExplanations.save({.sentenceHash = 42,
+                      .sentence = L"کتێبەکەم خوێندەوە",
+                      .answerJson = R"({"translation": "I read the book."})",
+                      .model = "claude-sonnet-5-5"});
+  // Negative hashes too: they are 64-bit digests stored as signed.
+  mExplanations.save({.sentenceHash = -7,
+                      .sentence = L"باشە",
+                      .answerJson = "{}",
+                      .model = "claude-sonnet-5-5"});
+
+  auto stored = mExplanations.get(42);
+  ASSERT_TRUE(stored);
+  EXPECT_EQ(stored->sentenceHash, 42);
+  EXPECT_EQ(stored->sentence, L"کتێبەکەم خوێندەوە");
+  EXPECT_EQ(stored->answerJson, R"({"translation": "I read the book."})");
+  EXPECT_EQ(stored->model, "claude-sonnet-5-5");
+  EXPECT_GT(stored->createdAt, 0);
+  ASSERT_TRUE(mExplanations.get(-7));
+  EXPECT_EQ(mExplanations.get(-7)->sentence, L"باشە");
+}
+
+TEST_F(ClaudeRepositoriesTests, ExplainingAgainReplacesTheExplanation) {
+  mExplanations.save({.sentenceHash = 42,
+                      .sentence = L"باشە",
+                      .answerJson = R"({"translation": "Good."})",
+                      .model = "claude-sonnet-5-5"});
+  sqlite::command backdate{mDbHandler.getConnection(),
+                           "UPDATE explanation SET created_at = 1000"};
+  backdate();
+  mExplanations.save({.sentenceHash = 42,
+                      .sentence = L"باشە",
+                      .answerJson = R"({"translation": "Fine."})",
+                      .model = "claude-opus-5-5"});
+
+  auto stored = mExplanations.get(42);
+  ASSERT_TRUE(stored);
+  EXPECT_EQ(stored->answerJson, R"({"translation": "Fine."})");
+  EXPECT_EQ(stored->model, "claude-opus-5-5");
+  EXPECT_GT(stored->createdAt, 1000);
 }
