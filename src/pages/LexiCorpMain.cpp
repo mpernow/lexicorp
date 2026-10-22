@@ -12,8 +12,8 @@
 #include <Wt/WMenuItem.h>
 #include <Wt/WStackedWidget.h>
 #include <Wt/Http/Cookie.h>
-#include <Wt/WButtonGroup.h>
-#include <Wt/WRadioButton.h>
+#include <Wt/WPushButton.h>
+#include <Wt/WText.h>
 #include <chrono>
 #include <memory>
 
@@ -167,19 +167,40 @@ void LexiCorpMain::addModelChoice(Wt::WContainerWidget *sidebar,
       if (*cookie == choice.id)
         mAppContext->explainModel = choice.id;
 
+  // A segmented control: one button per model, the chosen one active.
   auto group = sidebar->addNew<Wt::WContainerWidget>();
-  group->setStyleClass("sidebar-model small");
-  group->addNew<Wt::WText>("Explain with")
-      ->setStyleClass("sidebar-model-label text-body-secondary");
-  // The group only makes the radio buttons exclusive.
-  mExplainModelButtons = std::make_shared<Wt::WButtonGroup>();
+  group->setStyleClass("sidebar-model");
+  auto label = group->addNew<Wt::WText>("Explain with");
+  label->setStyleClass("form-label small text-body-secondary");
+  label->setInline(false);
+  auto buttons = group->addNew<Wt::WContainerWidget>();
+  buttons->setStyleClass("btn-group btn-group-sm w-100");
+  buttons->setAttributeValue("role", "group");
+  buttons->setAttributeValue("aria-label", "Model for explanations");
+
   auto current = mAppContext->currentExplainModel();
+  std::vector<Wt::WPushButton *> choices;
+  auto select = [](const std::vector<Wt::WPushButton *> &choices,
+                   Wt::WPushButton *chosen) {
+    for (auto *choice : choices) {
+      choice->toggleStyleClass("active", choice == chosen);
+      choice->setAttributeValue("aria-pressed",
+                                choice == chosen ? "true" : "false");
+    }
+  };
   for (const auto &choice : claude::kExplainModels) {
-    auto radio = group->addNew<Wt::WRadioButton>(choice.label);
-    radio->addStyleClass("form-check-inline");
-    mExplainModelButtons->addButton(radio);
-    radio->setChecked(current == choice.id);
-    radio->checked().connect([this, id = std::string(choice.id)] {
+    auto button = buttons->addNew<Wt::WPushButton>(choice.label);
+    button->setStyleClass("btn-outline-secondary");
+    choices.push_back(button);
+  }
+  for (std::size_t i = 0; i < choices.size(); ++i) {
+    std::string id = claude::kExplainModels[i].id;
+    if (id == current)
+      select(choices, choices[i]);
+    choices[i]->clicked().connect([this, choices, select, i, id] {
+      select(choices, choices[i]);
+      if (id == mAppContext->explainModel)
+        return;
       mAppContext->explainModel = id;
       Wt::Http::Cookie cookie{explainModelCookieName, id,
                               std::chrono::days{365}};

@@ -69,20 +69,17 @@ body {
 }
 
 /* The model for explanations, above the dark mode switch: it takes over
-   pinning the pair to the bottom. */
+   pinning the pair to the bottom. The menu keeps its distance from it when
+   the sidebar is too short for the auto margin to leave any. */
+.sidebar-nav:has(~ .sidebar-model) {
+  margin-bottom: 1.5rem;
+}
 .sidebar-model {
   margin-top: auto;
-  padding-top: 1rem;
 }
 .sidebar-model + .theme-switch {
   margin-top: 0;
-  padding-top: 0.5rem;
-}
-.sidebar-model-label {
-  display: block;
-}
-.sidebar-model .form-check-inline {
-  margin-right: 0.75rem;
+  padding-top: 0.75rem;
 }
 
 .app-content {
@@ -427,6 +424,10 @@ body div > div.Wt-loading {
     font-size: 0.875rem;
   }
 
+  .sidebar-nav:has(~ .sidebar-model) {
+    margin-bottom: 0;
+  }
+
   .sidebar-model,
   .sidebar-model + .theme-switch {
     margin: 0;
@@ -434,7 +435,7 @@ body div > div.Wt-loading {
   }
 
   /* The two model names say enough; the label stays for screen readers. */
-  .sidebar-model-label {
+  .sidebar-model .form-label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -443,8 +444,8 @@ body div > div.Wt-loading {
     white-space: nowrap;
   }
 
-  .sidebar-model .form-check-inline {
-    margin-right: 0.5rem;
+  .sidebar-model .btn-group {
+    width: auto !important;
   }
 
   .sidebar-nav {

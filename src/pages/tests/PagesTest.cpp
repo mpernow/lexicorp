@@ -25,7 +25,6 @@
 #include <Wt/WMessageBox.h>
 #include <Wt/WMenuItem.h>
 #include <Wt/WPushButton.h>
-#include <Wt/WRadioButton.h>
 #include <Wt/WTable.h>
 #include <Wt/WTemplate.h>
 #include <Wt/WText.h>
@@ -1648,12 +1647,19 @@ TEST_F(PagesTest, ExplanationSourcesOpenTheirGrammarSections) {
 TEST_F(PagesTest, ExplainModelIsChosenInTheSidebar) {
   addText(kBookText, 1, L"src", ckb, L"کتێبەکەم");
   addWord(L"کتێبەکەم", ckb);
+  // The sidebar's model buttons.
+  auto choice = [](Wt::WApplication &app, const std::string &label) {
+    for (auto *group : findAll<Wt::WContainerWidget>(app.root()))
+      if (group->hasStyleClass("sidebar-model"))
+        return findButton(group, label);
+    return static_cast<Wt::WPushButton *>(nullptr);
+  };
   {
     // Only offered when Claude can explain.
     useFakeClaude({});
     Wt::Test::WTestEnvironment env;
     LexiCorpMain app{env};
-    EXPECT_TRUE(findAll<Wt::WRadioButton>(app.root()).empty());
+    EXPECT_EQ(choice(app, "Sonnet"), nullptr);
   }
   auto client = useFakeClaude({});
   client->mCanExplain = true;
@@ -1662,11 +1668,12 @@ TEST_F(PagesTest, ExplainModelIsChosenInTheSidebar) {
   Wt::Test::WTestEnvironment env;
   LexiCorpMain app{env};
   selectLanguage(app, "Kurdish");
-  auto radios = findAll<Wt::WRadioButton>(app.root());
-  ASSERT_EQ(radios.size(), 2u);
-  EXPECT_EQ(radios[0]->text(), "Sonnet");
-  EXPECT_TRUE(radios[0]->isChecked()); // the client's default
-  EXPECT_FALSE(radios[1]->isChecked());
+  auto *sonnet = choice(app, "Sonnet");
+  auto *haiku = choice(app, "Haiku");
+  ASSERT_NE(sonnet, nullptr);
+  ASSERT_NE(haiku, nullptr);
+  EXPECT_TRUE(sonnet->hasStyleClass("active")); // the client's default
+  EXPECT_FALSE(haiku->hasStyleClass("active"));
 
   // Explained with the default; no "again" for the same model.
   auto *page = openWord(app, "کتێبەکەم");
@@ -1679,8 +1686,9 @@ TEST_F(PagesTest, ExplainModelIsChosenInTheSidebar) {
 
   // Choosing Haiku redraws the page; the stored Sonnet explanation offers
   // to explain again with Haiku.
-  radios[1]->setChecked(true);
-  radios[1]->checked().emit();
+  haiku->clicked().emit(Wt::WMouseEvent());
+  EXPECT_TRUE(haiku->hasStyleClass("active"));
+  EXPECT_FALSE(sonnet->hasStyleClass("active"));
   page = findOne<ViewSourcePage>(app.root());
   findButton(page, "Show explanation")->clicked().emit(Wt::WMouseEvent());
   again = findButton(page, "Explain again with Haiku");

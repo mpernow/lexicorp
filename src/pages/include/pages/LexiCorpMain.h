@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Wt/WApplication.h>
-#include <Wt/WButtonGroup.h>
 #include <Wt/WCheckBox.h>
 #include <Wt/WComboBox.h>
 #include <Wt/WJavaScript.h>
@@ -28,7 +27,6 @@ private:
   std::shared_ptr<AppContext> mAppContext;
   Wt::WComboBox *mLanguageCombo;
   Wt::WCheckBox *mDarkModeSwitch;
-  std::shared_ptr<Wt::WButtonGroup> mExplainModelButtons;
   // Emitted from the browser with its prefers-color-scheme setting; only used
   // while the user hasn't picked a theme themselves.
   Wt::JSignal<bool> mSystemPrefersDark{this, "systemPrefersDark"};
