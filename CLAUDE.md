@@ -140,8 +140,12 @@ headers in `src/<lib>/include/<lib>/`.
   read from `LEXICORP_GRAMMAR_FILE` at startup, not compiled in; without it
   `canExplain()` is false. The schema restricts cited sections to the
   reference's ids. `SentenceExplanation::answerJson` is what gets cached;
-  `explanationFromJson` reads it back. Model: `LEXICORP_CLAUDE_EXPLAIN_MODEL`
-  (default: the lookup model).
+  `explanationFromJson` reads it back. Model: `SentenceQuery::model`, chosen
+  in the sidebar (`kExplainModels`: Sonnet or Haiku, an `explain_model`
+  cookie, `AppContext::explainModel`), else `LEXICORP_CLAUDE_EXPLAIN_MODEL`
+  (default: the lookup model). Haiku 5.5 costs 5x for prompts over 100k
+  tokens, which the grammar reference is, so `pricingFor` takes the
+  request's prompt size and the Home page prices requests one by one.
 
 - **pages** — one `Wt::WContainerWidget` subclass per screen.
   `LexiCorpMain` (`Wt::WApplication`) builds the shell: a sidebar with a
@@ -157,7 +161,8 @@ headers in `src/<lib>/include/<lib>/`.
   an "Edit gloss" dialog, plus "Ask Claude" for a Kurdish word without a
   gloss; idioms the word is part of are listed in the gloss card and under
   each sentence containing them; each Kurdish sentence has an "Explain"
-  button while `canExplain()`).
+  button while `canExplain()`; an explanation from another model than the
+  sidebar's gets "Explain again with …", which replaces it).
   Explanations (`pages/Explanations.h`): the first click asks Claude in the
   background (with the sentences before and after it as context) and stores
   the answer in `explanation` under `sentenceHash()`, so the same sentence
@@ -203,8 +208,8 @@ headers in `src/<lib>/include/<lib>/`.
   only the selected word's sentences on `/source/word`.
 
 - **Per-browser preferences** live in one-year cookies read when the session
-  starts: `language` and `theme` (`dark` / `light`; without it the browser's
-  `prefers-color-scheme` is used). Dark mode is Bootstrap's `data-bs-theme`
+  starts: `language`, `explain_model` and `theme` (`dark` / `light`; without
+  it the browser's `prefers-color-scheme` is used). Dark mode is Bootstrap's `data-bs-theme`
   on `<html>`, so CSS should use `--bs-*` variables, not fixed colours.
 
 - **Slow actions** (anything that writes many rows or processes a long
@@ -292,6 +297,13 @@ images since the PDFs' text layers garble it; `tools/grammar_merge.py`
 writes one section per entry of `prompts/grammar_outline.md` from all the
 notes and assembles `grammar/reference.md`, the file `LEXICORP_GRAMMAR_FILE`
 names. The outline's ids are what explanations cite, so keep them stable.
+
+`tools/explain_eval.py` compares explanations of the sentences in
+`tools/explain_fixtures.json`, to try other models, prompts or references:
+`ask` explains them all through `explain_sentence`
+(`src/claude/ExplainCli.cpp`, the app's own request; paid) and saves a run
+in the ignored `explain-runs/`; `compare` puts runs, or a database's stored
+explanations, side by side in `explain-runs/compare.html`.
 
 The typical flow: `InsertTextPage` runs `TextProcessor::extractSentences`,
 lets the user pick which words to keep and mark as known, then writes rows to

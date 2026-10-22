@@ -68,6 +68,23 @@ body {
   padding-top: 1rem;
 }
 
+/* The model for explanations, above the dark mode switch: it takes over
+   pinning the pair to the bottom. */
+.sidebar-model {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+.sidebar-model + .theme-switch {
+  margin-top: 0;
+  padding-top: 0.5rem;
+}
+.sidebar-model-label {
+  display: block;
+}
+.sidebar-model .form-check-inline {
+  margin-right: 0.75rem;
+}
+
 .app-content {
   flex: 1;
   min-width: 0; /* let wide tables scroll instead of widening the page */
@@ -408,6 +425,26 @@ body div > div.Wt-loading {
     margin: 0;
     padding-top: 0;
     font-size: 0.875rem;
+  }
+
+  .sidebar-model,
+  .sidebar-model + .theme-switch {
+    margin: 0;
+    padding-top: 0;
+  }
+
+  /* The two model names say enough; the label stays for screen readers. */
+  .sidebar-model-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .sidebar-model .form-check-inline {
+    margin-right: 0.5rem;
   }
 
   .sidebar-nav {

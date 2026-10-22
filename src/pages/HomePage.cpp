@@ -46,25 +46,25 @@ std::int64_t startOfMonth() {
 
 // "Claude this month: 3 lookups · 4.2k tokens in, 310 out · $0.01", or empty
 // without requests.
-std::string
-usageSummary(const std::vector<db::models::ClaudeUsageTotal> &totals) {
-  std::int64_t requests = 0, input = 0, output = 0;
+std::string usageSummary(const std::vector<db::models::ClaudeUsage> &usage) {
+  auto requests = static_cast<std::int64_t>(usage.size());
+  std::int64_t input = 0, output = 0;
   double cost = 0;
   bool costKnown = true;
-  for (const auto &total : totals) {
-    requests += total.requests;
-    input += total.inputTokens + total.cacheReadTokens +
-             total.cacheCreationTokens;
-    output += total.outputTokens;
-    auto totalCost = claude::costOf(claude::Usage{
-        .model = total.model,
-        .inputTokens = total.inputTokens,
-        .outputTokens = total.outputTokens,
-        .cacheReadTokens = total.cacheReadTokens,
-        .cacheCreationTokens = total.cacheCreationTokens,
+  // Priced one by one: Haiku's price depends on the request's size.
+  for (const auto &request : usage) {
+    input += request.inputTokens + request.cacheReadTokens +
+             request.cacheCreationTokens;
+    output += request.outputTokens;
+    auto requestCost = claude::costOf(claude::Usage{
+        .model = request.model,
+        .inputTokens = request.inputTokens,
+        .outputTokens = request.outputTokens,
+        .cacheReadTokens = request.cacheReadTokens,
+        .cacheCreationTokens = request.cacheCreationTokens,
     });
-    costKnown = costKnown && totalCost;
-    cost += totalCost.value_or(0);
+    costKnown = costKnown && requestCost;
+    cost += requestCost.value_or(0);
   }
   if (requests == 0)
     return {};
@@ -147,7 +147,7 @@ void HomePage::refresh() {
 
   // For all languages: it is one bill.
   auto usage = usageSummary(
-      mAppContext->claudeUsageRepository->totalsSince(startOfMonth()));
+      mAppContext->claudeUsageRepository->requestsSince(startOfMonth()));
   mClaudeUsage->setText(Wt::WString::fromUTF8(usage));
   mClaudeUsage->setHidden(usage.empty());
 }

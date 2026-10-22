@@ -59,6 +59,26 @@ TEST_F(ClaudeRepositoriesTests, TotalsSkipOlderRequests) {
   EXPECT_TRUE(mUsage.totalsSince(4'000'000'000).empty());
 }
 
+TEST_F(ClaudeRepositoriesTests, RequestsSinceListsEachRequest) {
+  addUsage("claude-sonnet-5-5", 100, 20);
+  sqlite::command backdate{mDbHandler.getConnection(),
+                           "UPDATE claude_usage SET created_at = 1000"};
+  backdate();
+  addUsage("claude-haiku-5-5", 7, 3);
+  addUsage("claude-sonnet-5-5", 50, 5);
+
+  auto requests = mUsage.requestsSince(2000);
+  ASSERT_EQ(requests.size(), 2u);
+  EXPECT_EQ(requests[0].model, "claude-haiku-5-5");
+  EXPECT_EQ(requests[0].purpose, "define_word");
+  EXPECT_EQ(requests[0].inputTokens, 7);
+  EXPECT_EQ(requests[0].outputTokens, 3);
+  EXPECT_EQ(requests[0].cacheReadTokens, 10);
+  EXPECT_EQ(requests[1].model, "claude-sonnet-5-5");
+  EXPECT_EQ(requests[1].inputTokens, 50);
+  EXPECT_EQ(mUsage.requestsSince(0).size(), 3u);
+}
+
 TEST_F(ClaudeRepositoriesTests, ExpressionLinksAreUnique) {
   mExpressions.add({L"پێم", ckb, L"پێم وایە"});
   mExpressions.add({L"پێم", ckb, L"پێم وایە"});

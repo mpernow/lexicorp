@@ -252,6 +252,20 @@ TEST(ClaudeClientTests, CostUsesTheModelsPrices) {
   EXPECT_FALSE(claude::costOf(usage));
 }
 
+TEST(ClaudeClientTests, HaikuCostsMoreForLongPrompts) {
+  // 90k tokens of prompt: the base price.
+  claude::Usage usage{.model = "claude-haiku-5-5",
+                      .inputTokens = 10'000,
+                      .outputTokens = 1'000,
+                      .cacheReadTokens = 80'000};
+  EXPECT_DOUBLE_EQ(*claude::costOf(usage),
+                   (10'000 * 0.10 + 1'000 * 0.50 + 80'000 * 0.01) / 1e6);
+  // 120k (the grammar reference's size): 5x for every token.
+  usage.cacheReadTokens = 110'000;
+  EXPECT_DOUBLE_EQ(*claude::costOf(usage),
+                   (10'000 * 0.50 + 1'000 * 2.50 + 110'000 * 0.05) / 1e6);
+}
+
 TEST(ClaudeClientTests, GrammarReferenceListsSectionIdsOnce) {
   auto reference = claude::grammarReferenceFrom(
       "<section id=\"a.one\" title=\"One\">x</section>\n"
@@ -460,4 +474,22 @@ TEST(ClaudeClientTests, ExplainsWithTheExplainModel) {
     EXPECT_TRUE(std::ranges::find(fake->mHeaders, "x-api-key: secret") !=
                 fake->mHeaders.end());
   }
+}
+
+TEST(ClaudeClientTests, AQueryCanNameItsModel) {
+  auto transport =
+      std::make_unique<FakeTransport>(ok(messageWith(kExplanation)));
+  auto *fake = transport.get();
+  claude::ClaudeClient client{"secret", "claude-sonnet-5-5",
+                              std::move(transport), kGrammar};
+  EXPECT_EQ(client.explainModel(), "claude-sonnet-5-5");
+
+  client.explainSentence(
+      {L"کتێبەکەم خوێندەوە", L"", L"", "claude-haiku-5-5"});
+  Json::Object request;
+  Json::parse(fake->mBody, request);
+  EXPECT_EQ(utf8(request.get("model")), "claude-haiku-5-5");
+
+  EXPECT_EQ(claude::modelLabel("claude-haiku-5-5"), "Haiku");
+  EXPECT_EQ(claude::modelLabel("claude-opus-5-5"), "claude-opus-5-5");
 }

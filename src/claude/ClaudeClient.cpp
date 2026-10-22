@@ -450,10 +450,14 @@ SentenceExplanation ClaudeClient::explainSentence(const SentenceQuery &query) {
   if (!mGrammar)
     return {.error = "Sentence explanations need the grammar reference"};
   return parseExplainSentenceResponse(
-      post(explainSentenceRequest(mExplainModel, *mGrammar, query)));
+      post(explainSentenceRequest(
+          query.model.empty() ? mExplainModel : query.model, *mGrammar,
+          query)));
 }
 
 bool ClaudeClient::canExplain() const { return mGrammar.has_value(); }
+
+std::string ClaudeClient::explainModel() const { return mExplainModel; }
 
 const GrammarReference *ClaudeClient::grammar() const {
   return mGrammar ? &*mGrammar : nullptr;
@@ -547,18 +551,31 @@ SentenceExplanation explanationFromJson(const std::string &answerJson) {
   return explanation;
 }
 
-std::optional<Pricing> pricingFor(const std::string &model) {
+std::string modelLabel(const std::string &model) {
+  for (const auto &choice : kExplainModels)
+    if (model == choice.id)
+      return choice.label;
+  return model;
+}
+
+std::optional<Pricing> pricingFor(const std::string &model,
+                                  std::int64_t promptTokens) {
   if (model.starts_with("claude-sonnet-5-5"))
     return Pricing{2.0, 10.0, 0.20, 2.50};
+  // Above 100k prompt tokens every token of the request costs 5x; the cache
+  // rates are assumed to scale the same way.
   if (model.starts_with("claude-haiku-5-5"))
-    return Pricing{0.10, 0.50, 0.01, 0.125};
+    return promptTokens > 100'000 ? Pricing{0.50, 2.50, 0.05, 0.625}
+                                  : Pricing{0.10, 0.50, 0.01, 0.125};
   if (model.starts_with("claude-opus-5-5"))
     return Pricing{4.0, 20.0, 0.20, 5.0};
   return std::nullopt;
 }
 
 std::optional<double> costOf(const Usage &usage) {
-  auto pricing = pricingFor(usage.model);
+  auto pricing = pricingFor(usage.model, usage.inputTokens +
+                                             usage.cacheReadTokens +
+                                             usage.cacheCreationTokens);
   if (!pricing)
     return std::nullopt;
   return (usage.inputTokens * pricing->input +

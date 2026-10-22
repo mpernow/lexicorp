@@ -12,6 +12,8 @@
 #include <Wt/WMenuItem.h>
 #include <Wt/WStackedWidget.h>
 #include <Wt/Http/Cookie.h>
+#include <Wt/WButtonGroup.h>
+#include <Wt/WRadioButton.h>
 #include <chrono>
 #include <memory>
 
@@ -122,6 +124,8 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
   // --- Add menu to sidebar ---
   sidebar->addWidget(std::move(menu));
 
+  addModelChoice(sidebar, env);
+
   // --- Dark mode switch, pinned to the bottom of the sidebar ---
   mDarkModeSwitch = sidebar->addNew<Wt::WCheckBox>("Dark mode");
   mDarkModeSwitch->addStyleClass("form-switch theme-switch");
@@ -150,6 +154,40 @@ LexiCorpMain::LexiCorpMain(const Wt::WEnvironment &env)
     setInternalPath("/", true);
   }
   markActive();
+}
+
+void LexiCorpMain::addModelChoice(Wt::WContainerWidget *sidebar,
+                                  const Wt::WEnvironment &env) {
+  const auto &client = mAppContext->claudeClient;
+  if (!client || !client->canExplain())
+    return;
+
+  if (const std::string *cookie = env.getCookie(explainModelCookieName))
+    for (const auto &choice : claude::kExplainModels)
+      if (*cookie == choice.id)
+        mAppContext->explainModel = choice.id;
+
+  auto group = sidebar->addNew<Wt::WContainerWidget>();
+  group->setStyleClass("sidebar-model small");
+  group->addNew<Wt::WText>("Explain with")
+      ->setStyleClass("sidebar-model-label text-body-secondary");
+  // The group only makes the radio buttons exclusive.
+  mExplainModelButtons = std::make_shared<Wt::WButtonGroup>();
+  auto current = mAppContext->currentExplainModel();
+  for (const auto &choice : claude::kExplainModels) {
+    auto radio = group->addNew<Wt::WRadioButton>(choice.label);
+    radio->addStyleClass("form-check-inline");
+    mExplainModelButtons->addButton(radio);
+    radio->setChecked(current == choice.id);
+    radio->checked().connect([this, id = std::string(choice.id)] {
+      mAppContext->explainModel = id;
+      Wt::Http::Cookie cookie{explainModelCookieName, id,
+                              std::chrono::days{365}};
+      cookie.setPath("/");
+      setCookie(cookie);
+      mAppContext->explainModelChanged.emit();
+    });
+  }
 }
 
 void LexiCorpMain::addHeadTags() {

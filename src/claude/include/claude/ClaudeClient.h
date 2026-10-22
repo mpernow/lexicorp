@@ -3,6 +3,7 @@
 #include "claude/GrammarReference.h"
 #include "claude/HttpTransport.h"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -63,7 +64,20 @@ struct SentenceQuery {
   std::wstring sentence;
   std::wstring before;
   std::wstring after;
+  std::string model; // empty: the client's explainModel()
 };
+
+// The models the sidebar offers for explanations.
+struct ModelChoice {
+  const char *id;
+  const char *label;
+};
+inline constexpr std::array<ModelChoice, 2> kExplainModels{{
+    {"claude-sonnet-5-5", "Sonnet"},
+    {"claude-haiku-5-5", "Haiku"},
+}};
+// Its kExplainModels label, or the id itself.
+std::string modelLabel(const std::string &model);
 
 // One part of a word: its stem, an affix or a clitic.
 struct Morpheme {
@@ -121,6 +135,8 @@ public:
 
   // Whether explainSentence() is available: it needs the grammar reference.
   virtual bool canExplain() const = 0;
+  // The model explainSentence() uses when the query names none.
+  virtual std::string explainModel() const = 0;
   // The grammar reference explanations cite; null without one.
   virtual const GrammarReference *grammar() const = 0;
 };
@@ -142,6 +158,7 @@ public:
   WordLookup defineWord(const WordQuery &query) override;
   SentenceExplanation explainSentence(const SentenceQuery &query) override;
   bool canExplain() const override;
+  std::string explainModel() const override;
   const GrammarReference *grammar() const override;
 
 private:
@@ -177,8 +194,11 @@ struct Pricing {
   double cacheRead;
   double cacheWrite; // 5-minute cache
 };
-// Empty for a model whose price isn't known here.
-std::optional<Pricing> pricingFor(const std::string &model);
-// What `usage` cost, if its model's price is known.
+// The price of a request to `model` whose prompt (input, cache read and cache
+// write) is `promptTokens` long: Haiku 5.5 charges more above 100k. Empty
+// for a model whose price isn't known here.
+std::optional<Pricing> pricingFor(const std::string &model,
+                                  std::int64_t promptTokens = 0);
+// What one request cost, if its model's price is known.
 std::optional<double> costOf(const Usage &usage);
 } // namespace claude

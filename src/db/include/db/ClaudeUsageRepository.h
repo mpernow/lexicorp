@@ -13,6 +13,8 @@ public:
   void add(const models::ClaudeUsage &usage) override;
   std::vector<models::ClaudeUsageTotal>
   totalsSince(const std::int64_t since) override;
+  std::vector<models::ClaudeUsage>
+  requestsSince(const std::int64_t since) override;
 
 private:
   sqlite::connection &mDbConn;

@@ -32,6 +32,11 @@ target_include_directories(claude
 
 target_link_libraries(claude PUBLIC Wt::Wt PRIVATE CURL::libcurl)
 
+# Sends sentences through the app's explain request, for
+# tools/explain_eval.py.
+add_executable(explain_sentence ExplainCli.cpp)
+target_link_libraries(explain_sentence claude)
+
 # Add test executable
 add_executable(claude_client_test
     tests/ClaudeClientTest.cpp

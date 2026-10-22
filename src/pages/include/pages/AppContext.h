@@ -52,6 +52,17 @@ public:
   Wt::Signal<> wordSelected;
   std::wstring selectedWord;
 
+  // The model chosen in the sidebar for explanations; empty: the client's
+  // default.
+  std::string explainModel;
+  Wt::Signal<> explainModelChanged;
+  // explainModel, or the client's default.
+  std::string currentExplainModel() const {
+    if (!explainModel.empty() || !claudeClient)
+      return explainModel;
+    return claudeClient->explainModel();
+  }
+
   std::shared_ptr<db::DatabaseHandler> dbHandler;
   std::shared_ptr<db::WordRepository> wordRepository;
   std::shared_ptr<db::TextRepository> textRepository;

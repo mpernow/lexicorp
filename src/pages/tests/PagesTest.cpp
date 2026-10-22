@@ -25,6 +25,7 @@
 #include <Wt/WMessageBox.h>
 #include <Wt/WMenuItem.h>
 #include <Wt/WPushButton.h>
+#include <Wt/WRadioButton.h>
 #include <Wt/WTable.h>
 #include <Wt/WTemplate.h>
 #include <Wt/WText.h>
@@ -1156,6 +1157,7 @@ public:
   }
 
   bool canExplain() const override { return mCanExplain; }
+  std::string explainModel() const override { return "claude-sonnet-5-5"; }
   const claude::GrammarReference *grammar() const override {
     return mGrammar ? &*mGrammar : nullptr;
   }
@@ -1641,4 +1643,67 @@ TEST_F(PagesTest, ExplanationSourcesOpenTheirGrammarSections) {
 
   findButton(dialog, "Close")->clicked().emit(Wt::WMouseEvent());
   EXPECT_EQ(findOne<Wt::WDialog>(app.domRoot()), nullptr);
+}
+
+TEST_F(PagesTest, ExplainModelIsChosenInTheSidebar) {
+  addText(kBookText, 1, L"src", ckb, L"کتێبەکەم");
+  addWord(L"کتێبەکەم", ckb);
+  {
+    // Only offered when Claude can explain.
+    useFakeClaude({});
+    Wt::Test::WTestEnvironment env;
+    LexiCorpMain app{env};
+    EXPECT_TRUE(findAll<Wt::WRadioButton>(app.root()).empty());
+  }
+  auto client = useFakeClaude({});
+  client->mCanExplain = true;
+  client->mExplanation = bookExplanation(); // answered by Sonnet
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  selectLanguage(app, "Kurdish");
+  auto radios = findAll<Wt::WRadioButton>(app.root());
+  ASSERT_EQ(radios.size(), 2u);
+  EXPECT_EQ(radios[0]->text(), "Sonnet");
+  EXPECT_TRUE(radios[0]->isChecked()); // the client's default
+  EXPECT_FALSE(radios[1]->isChecked());
+
+  // Explained with the default; no "again" for the same model.
+  auto *page = openWord(app, "کتێبەکەم");
+  findButton(page, "Explain")->clicked().emit(Wt::WMouseEvent());
+  ASSERT_EQ(client->mSentenceQueries.size(), 1u);
+  EXPECT_EQ(client->mSentenceQueries[0].model, "claude-sonnet-5-5");
+  auto *again = findButton(page, "Explain again with Sonnet");
+  ASSERT_NE(again, nullptr);
+  EXPECT_TRUE(again->isHidden());
+
+  // Choosing Haiku redraws the page; the stored Sonnet explanation offers
+  // to explain again with Haiku.
+  radios[1]->setChecked(true);
+  radios[1]->checked().emit();
+  page = findOne<ViewSourcePage>(app.root());
+  findButton(page, "Show explanation")->clicked().emit(Wt::WMouseEvent());
+  again = findButton(page, "Explain again with Haiku");
+  ASSERT_NE(again, nullptr);
+  EXPECT_FALSE(again->isHidden());
+
+  client->mExplanation.translation = L"I read the book (Haiku).";
+  client->mExplanation.usage->model = "claude-haiku-5-5";
+  again->clicked().emit(Wt::WMouseEvent());
+  ASSERT_EQ(client->mSentenceQueries.size(), 2u);
+  EXPECT_EQ(client->mSentenceQueries[1].model, "claude-haiku-5-5");
+  auto *explanation = shownExplanation(page);
+  ASSERT_NE(explanation, nullptr);
+  EXPECT_TRUE(containsText(explanation, "I read the book (Haiku)."));
+  EXPECT_TRUE(again->isHidden());
+  EXPECT_TRUE(again->isEnabled());
+  {
+    // The new answer replaces the stored one.
+    AppContext appContext;
+    processor::TextProcessor processor;
+    auto stored = appContext.explanationRepository->get(
+        sentenceHash(processor, L"کتێبەکەم خوێندەوە."));
+    ASSERT_TRUE(stored);
+    EXPECT_EQ(stored->model, "claude-haiku-5-5");
+  }
 }

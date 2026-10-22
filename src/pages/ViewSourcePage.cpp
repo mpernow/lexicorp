@@ -47,6 +47,11 @@ ViewSourcePage::ViewSourcePage(std::shared_ptr<AppContext> appContext)
           refresh();
       });
   mAppContext->languageChanged.connect([this] { refresh(); });
+  // The Explain buttons name the model.
+  mAppContext->explainModelChanged.connect([this] {
+    if (Wt::WApplication::instance()->internalPath().starts_with("/source"))
+      refresh();
+  });
 }
 
 std::string htmlEscape(const std::string &input) {
@@ -521,29 +526,19 @@ void ViewSourcePage::addSentencesBlock(
   });
 }
 
-namespace {
-void showExplanation(Wt::WContainerWidget *panel, Wt::WPushButton *button,
-                     const claude::SentenceExplanation &explanation,
-                     const std::string &model,
-                     const claude::GrammarReference *grammar) {
-  panel->addWidget(explanationWidget(explanation, model, grammar));
-  panel->show();
-  button->setText("Hide explanation");
-  button->setToolTip("");
-}
-} // namespace
-
 void ViewSourcePage::addExplanation(Wt::WContainerWidget *row,
                                     const db::models::Sentence &sentence) {
   auto hash = sentenceHash(mTextProcessor, sentence.sentence);
   bool stored = mAppContext->explanationRepository->get(hash).has_value();
+  auto current = mAppContext->currentExplainModel();
 
   auto button =
       row->addNew<Wt::WPushButton>(stored ? "Show explanation" : "Explain");
   button->setStyleClass("btn-sm btn-link p-0 explain-button busy-button");
   if (!stored)
-    button->setToolTip("Explain this sentence with Claude (AI-generated, "
-                       "a paid API request)");
+    button->setToolTip("Explain this sentence with Claude " +
+                       claude::modelLabel(current) +
+                       " (AI-generated, a paid API request)");
   auto error = row->addNew<Wt::WText>();
   error->setTextFormat(Wt::TextFormat::Plain);
   error->setInline(false);
@@ -551,53 +546,88 @@ void ViewSourcePage::addExplanation(Wt::WContainerWidget *row,
   error->hide();
   auto panel = row->addNew<Wt::WContainerWidget>();
   panel->hide();
+  // Under an explanation from another model than the sidebar's. Outside the
+  // panel, which is cleared when the new answer arrives.
+  auto again = row->addNew<Wt::WPushButton>("Explain again with " +
+                                            claude::modelLabel(current));
+  again->setStyleClass("btn-sm btn-link p-0 explain-button busy-button");
+  again->setToolTip("Replaces this explanation (a paid API request)");
+  again->hide();
+  // The model of the explanation in the panel.
+  auto shownModel = std::make_shared<std::string>();
 
-  // Disabled, with a spinner, as soon as it is clicked: re-enabled at once
-  // unless Claude is asked, then when the answer arrives.
-  button->clicked().connect(button, &Wt::WWidget::disable);
-  button->clicked().connect([this, button, error, panel, sentence, hash] {
-    error->hide();
-    if (panel->count() > 0) {
-      button->enable();
-      panel->setHidden(!panel->isHidden());
-      button->setText(panel->isHidden() ? "Show explanation"
-                                        : "Hide explanation");
-      return;
-    }
-    // Possibly explained since the page was drawn, e.g. in another text.
-    if (auto stored = mAppContext->explanationRepository->get(hash)) {
-      auto explanation = claude::explanationFromJson(stored->answerJson);
-      if (explanation.error.empty()) {
-        button->enable();
-        showExplanation(panel, button, explanation, stored->model,
-                        mAppContext->claudeClient->grammar());
-        return;
-      }
-    }
+  auto show = [this, button, panel, again, shownModel, current](
+                  const claude::SentenceExplanation &explanation,
+                  const std::string &model) {
+    panel->clear();
+    panel->addWidget(explanationWidget(explanation, model,
+                                       mAppContext->claudeClient->grammar()));
+    panel->show();
+    *shownModel = model;
+    again->setHidden(model == current);
+    button->setText("Hide explanation");
+    button->setToolTip("");
+  };
 
+  auto ask = [this, sentence, hash, button, error, panel, again, show,
+              current] {
     auto query = sentenceQuery(*mAppContext, sentence);
+    query.model = current;
     auto client = mAppContext->claudeClient;
     // The page may be redrawn before the answer arrives.
     Wt::Core::observing_ptr<Wt::WPushButton> buttonPtr = button;
+    Wt::Core::observing_ptr<Wt::WPushButton> againPtr = again;
     Wt::Core::observing_ptr<Wt::WText> errorPtr = error;
     Wt::Core::observing_ptr<Wt::WContainerWidget> panelPtr = panel;
     runInBackground<claude::SentenceExplanation>(
         [client, query] { return client->explainSentence(query); },
-        [this, client, query, hash, buttonPtr, errorPtr,
-         panelPtr](claude::SentenceExplanation explanation) {
+        [this, query, hash, buttonPtr, againPtr, errorPtr, panelPtr,
+         show](claude::SentenceExplanation explanation) {
           saveExplanation(*mAppContext, hash, query, explanation);
-          if (!buttonPtr || !errorPtr || !panelPtr)
+          if (!buttonPtr || !againPtr || !errorPtr || !panelPtr)
             return;
           buttonPtr->enable();
+          againPtr->enable();
           if (!explanation.error.empty()) {
             errorPtr->setText(Wt::WString::fromUTF8(explanation.error + "."));
             errorPtr->show();
             return;
           }
-          showExplanation(panelPtr.get(), buttonPtr.get(), explanation,
-                          explanation.usage ? explanation.usage->model : "",
-                          client->grammar());
+          show(explanation,
+               explanation.usage ? explanation.usage->model : query.model);
         });
+  };
+
+  // Disabled, with a spinner, as soon as it is clicked: re-enabled at once
+  // unless Claude is asked, then when the answer arrives.
+  button->clicked().connect(button, &Wt::WWidget::disable);
+  button->clicked().connect(
+      [this, button, error, panel, again, hash, show, ask, shownModel,
+       current] {
+        error->hide();
+        if (panel->count() > 0) {
+          button->enable();
+          panel->setHidden(!panel->isHidden());
+          again->setHidden(panel->isHidden() || *shownModel == current);
+          button->setText(panel->isHidden() ? "Show explanation"
+                                            : "Hide explanation");
+          return;
+        }
+        // Possibly explained since the page was drawn, e.g. in another text.
+        if (auto stored = mAppContext->explanationRepository->get(hash)) {
+          auto explanation = claude::explanationFromJson(stored->answerJson);
+          if (explanation.error.empty()) {
+            button->enable();
+            show(explanation, stored->model);
+            return;
+          }
+        }
+        ask();
+      });
+  again->clicked().connect(again, &Wt::WWidget::disable);
+  again->clicked().connect([error, ask] {
+    error->hide();
+    ask();
   });
 }
 

@@ -48,4 +48,27 @@ ClaudeUsageRepository::totalsSince(const std::int64_t since) {
   return results;
 }
 
+std::vector<models::ClaudeUsage>
+ClaudeUsageRepository::requestsSince(const std::int64_t since) {
+  sqlite::query q{mDbConn,
+                  "SELECT id, created_at, model, purpose, input_tokens, "
+                  "output_tokens, cache_read_tokens, cache_creation_tokens "
+                  "FROM claude_usage WHERE created_at >= ? ORDER BY id"};
+  q.bind(1, since);
+
+  std::vector<models::ClaudeUsage> results;
+  for (auto &row : q.each())
+    results.push_back(models::ClaudeUsage{
+        .id = row.get<std::int64_t>(0),
+        .createdAt = row.get<std::int64_t>(1),
+        .model = row.get<std::string>(2),
+        .purpose = row.get<std::string>(3),
+        .inputTokens = row.get<std::int64_t>(4),
+        .outputTokens = row.get<std::int64_t>(5),
+        .cacheReadTokens = row.get<std::int64_t>(6),
+        .cacheCreationTokens = row.get<std::int64_t>(7),
+    });
+  return results;
+}
+
 } // namespace db
