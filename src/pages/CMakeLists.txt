@@ -9,6 +9,7 @@ add_library(pages
     Glosses.cpp
     ClaudeLookup.cpp
     Explanations.cpp
+    GrammarSections.cpp
 )
 
 target_include_directories(pages

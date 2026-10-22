@@ -164,7 +164,11 @@ headers in `src/<lib>/include/<lib>/`.
   in any text reuses it; later clicks show / hide the stored one. The
   result is rendered interlinear (word, Leipzig gloss, base form), then the
   parts of each word (affixes with a tatweel on their joining side),
-  constructions and notes with their cited section ids. The answer's
+  constructions and notes with their cited section ids, then "Sources":
+  each cited section (`IClaudeClient::grammar()`), opening its Markdown in a
+  dialog (`pages/GrammarSections.h`: a small renderer for what the
+  reference uses, with section ids in the text linking to those sections
+  and a Back button). The answer's
   widgets are held through `Wt::Core::observing_ptr`, since the page can be
   redrawn before it arrives.
   Glosses (`pages/Glosses.h`): a word's entries from the preferred

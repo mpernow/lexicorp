@@ -260,6 +260,15 @@ TEST(ClaudeClientTests, GrammarReferenceListsSectionIdsOnce) {
   EXPECT_EQ(reference.sectionIds,
             (std::vector<std::string>{"a.one", "b.two"}));
   EXPECT_TRUE(reference.text.starts_with("<section"));
+
+  // Each section's text, without its tags; a repeated id keeps the first.
+  ASSERT_EQ(reference.sections.size(), 2u);
+  ASSERT_NE(reference.section("a.one"), nullptr);
+  EXPECT_EQ(reference.section("a.one")->title, "One");
+  EXPECT_EQ(reference.section("a.one")->text, "x");
+  EXPECT_EQ(reference.section("b.two")->title, "");
+  EXPECT_EQ(reference.section("b.two")->text, "y");
+  EXPECT_EQ(reference.section("c.three"), nullptr);
 }
 
 TEST(ClaudeClientTests, GrammarReferenceLoadsFromAFile) {

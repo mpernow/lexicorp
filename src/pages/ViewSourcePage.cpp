@@ -524,8 +524,9 @@ void ViewSourcePage::addSentencesBlock(
 namespace {
 void showExplanation(Wt::WContainerWidget *panel, Wt::WPushButton *button,
                      const claude::SentenceExplanation &explanation,
-                     const std::string &model) {
-  panel->addWidget(explanationWidget(explanation, model));
+                     const std::string &model,
+                     const claude::GrammarReference *grammar) {
+  panel->addWidget(explanationWidget(explanation, model, grammar));
   panel->show();
   button->setText("Hide explanation");
   button->setToolTip("");
@@ -568,7 +569,8 @@ void ViewSourcePage::addExplanation(Wt::WContainerWidget *row,
       auto explanation = claude::explanationFromJson(stored->answerJson);
       if (explanation.error.empty()) {
         button->enable();
-        showExplanation(panel, button, explanation, stored->model);
+        showExplanation(panel, button, explanation, stored->model,
+                        mAppContext->claudeClient->grammar());
         return;
       }
     }
@@ -581,7 +583,7 @@ void ViewSourcePage::addExplanation(Wt::WContainerWidget *row,
     Wt::Core::observing_ptr<Wt::WContainerWidget> panelPtr = panel;
     runInBackground<claude::SentenceExplanation>(
         [client, query] { return client->explainSentence(query); },
-        [this, query, hash, buttonPtr, errorPtr,
+        [this, client, query, hash, buttonPtr, errorPtr,
          panelPtr](claude::SentenceExplanation explanation) {
           saveExplanation(*mAppContext, hash, query, explanation);
           if (!buttonPtr || !errorPtr || !panelPtr)
@@ -593,7 +595,8 @@ void ViewSourcePage::addExplanation(Wt::WContainerWidget *row,
             return;
           }
           showExplanation(panelPtr.get(), buttonPtr.get(), explanation,
-                          explanation.usage ? explanation.usage->model : "");
+                          explanation.usage ? explanation.usage->model : "",
+                          client->grammar());
         });
   });
 }

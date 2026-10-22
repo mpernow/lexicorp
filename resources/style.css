@@ -200,6 +200,35 @@ body {
   margin-top: 0.75rem;
 }
 
+/* A grammar section an explanation cites, opened from its "Sources". */
+.grammar-link {
+  text-align: start;
+  text-decoration: none;
+}
+.grammar-link:hover {
+  text-decoration: underline;
+}
+.grammar-dialog {
+  width: min(48rem, calc(100vw - 2rem));
+}
+.grammar-dialog-body {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.grammar-section {
+  font-size: 0.9375rem;
+}
+.grammar-section h6 {
+  margin-top: 1rem;
+  font-weight: 600;
+}
+.grammar-section table {
+  width: auto;
+}
+.grammar-section .grammar-link {
+  font-size: inherit;
+}
+
 /* Words in the word list: tap to see their sources. */
 .word-link {
   padding: 0.25rem 0;

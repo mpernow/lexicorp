@@ -455,6 +455,10 @@ SentenceExplanation ClaudeClient::explainSentence(const SentenceQuery &query) {
 
 bool ClaudeClient::canExplain() const { return mGrammar.has_value(); }
 
+const GrammarReference *ClaudeClient::grammar() const {
+  return mGrammar ? &*mGrammar : nullptr;
+}
+
 std::string defineWordRequest(const std::string &model,
                               const WordQuery &query) {
   // The prompt is the same in every request, so it is cached (once it is

@@ -1,12 +1,15 @@
 #include "pages/Explanations.h"
 #include "pages/Bidi.h"
+#include "pages/GrammarSections.h"
 
 #include "db/Savepoint.h"
 #include "db/Utils.h"
 
+#include <Wt/WPushButton.h>
 #include <Wt/WText.h>
 
 #include <algorithm>
+#include <utility>
 
 namespace {
 std::string utf8(const std::wstring &text) { return db::Utils::toUtf8(text); }
@@ -70,6 +73,22 @@ std::string partsOf(const claude::WordAnalysis &word) {
   }
   return parts;
 }
+
+// The sections the constructions and notes cite, in order, each once.
+std::vector<std::string>
+citedSections(const claude::SentenceExplanation &explanation) {
+  std::vector<std::string> sections;
+  auto add = [&](const std::vector<std::string> &cited) {
+    for (const auto &id : cited)
+      if (std::ranges::find(sections, id) == sections.end())
+        sections.push_back(id);
+  };
+  for (const auto &construction : explanation.constructions)
+    add(construction.sections);
+  for (const auto &note : explanation.notes)
+    add(note.sections);
+  return sections;
+}
 } // namespace
 
 claude::SentenceQuery sentenceQuery(AppContext &appContext,
@@ -117,7 +136,8 @@ void saveExplanation(AppContext &appContext, std::int64_t hash,
 
 std::unique_ptr<Wt::WContainerWidget>
 explanationWidget(const claude::SentenceExplanation &explanation,
-                  const std::string &model) {
+                  const std::string &model,
+                  const claude::GrammarReference *grammar) {
   auto panel = std::make_unique<Wt::WContainerWidget>();
   panel->setStyleClass("explanation");
 
@@ -176,6 +196,29 @@ explanationWidget(const claude::SentenceExplanation &explanation,
     section("Notes");
     for (const auto &note : explanation.notes)
       addCitedLine(panel.get(), utf8(note.text), note.sections);
+  }
+
+  // Each cited section, to read in full.
+  if (grammar) {
+    bool first = true;
+    for (const auto &id : citedSections(explanation)) {
+      const auto *cited = grammar->section(id);
+      if (!cited)
+        continue;
+      if (std::exchange(first, false))
+        section("Sources");
+      auto line = panel->addNew<Wt::WContainerWidget>();
+      line->setStyleClass("explanation-line");
+      auto link = line->addNew<Wt::WPushButton>(Wt::WString::fromUTF8(
+          cited->title.empty() ? cited->id : cited->title));
+      link->setStyleClass("btn-sm btn-link p-0 align-baseline grammar-link");
+      line->addNew<Wt::WText>(Wt::WString::fromUTF8(" " + id),
+                              Wt::TextFormat::Plain)
+          ->setStyleClass("explanation-sections text-body-secondary");
+      link->clicked().connect([owner = panel.get(), grammar, id] {
+        showGrammarSection(owner, *grammar, id);
+      });
+    }
   }
 
   addLine(panel.get(),

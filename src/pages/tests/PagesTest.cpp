@@ -7,6 +7,7 @@
 #include "pages/Background.h"
 #include "pages/DisplayWordsPage.h"
 #include "pages/Explanations.h"
+#include "pages/GrammarSections.h"
 #include "pages/InsertTextPage.h"
 #include "pages/HomePage.h"
 #include "pages/LexiCorpMain.h"
@@ -25,12 +26,14 @@
 #include <Wt/WMenuItem.h>
 #include <Wt/WPushButton.h>
 #include <Wt/WTable.h>
+#include <Wt/WTemplate.h>
 #include <Wt/WText.h>
 #include <Wt/WTextArea.h>
 
 #include <algorithm>
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <gtest/gtest.h>
 #include <sqlite/execute.hpp>
 #include <string>
@@ -1153,12 +1156,16 @@ public:
   }
 
   bool canExplain() const override { return mCanExplain; }
+  const claude::GrammarReference *grammar() const override {
+    return mGrammar ? &*mGrammar : nullptr;
+  }
 
   claude::WordLookup mAnswer;
   std::vector<claude::WordQuery> mQueries;
   claude::SentenceExplanation mExplanation;
   std::vector<claude::SentenceQuery> mSentenceQueries;
   bool mCanExplain = false;
+  std::optional<claude::GrammarReference> mGrammar;
 };
 
 std::shared_ptr<FakeClaudeClient> useFakeClaude(claude::WordLookup answer) {
@@ -1564,4 +1571,74 @@ TEST_F(PagesTest, ExplainShowsErrors) {
     errorShown = errorShown || (text->text() == "Claude declined to answer." &&
                                 text->isVisible());
   EXPECT_FALSE(errorShown);
+}
+
+TEST(GrammarSectionsTest, MarkdownToXhtml) {
+  EXPECT_EQ(markdownToXhtml("#### The affixes\n\nOne line\nand the next."),
+            "<h6>The affixes</h6><p>One line and the next.</p>");
+  EXPECT_EQ(markdownToXhtml("A **bold** and *italic* `x` <b>&"),
+            "<p>A <strong>bold</strong> and <em>italic</em> <code>x</code> "
+            "&lt;b&gt;&amp;</p>");
+  // Nested lists, and a line continuing the item above.
+  EXPECT_EQ(markdownToXhtml("- one\n  1. a\n  2. b\n- two\n  more"),
+            "<ul><li>one<ol><li>a</li><li>b</li></ol></li>"
+            "<li>two more</li></ul>");
+  EXPECT_EQ(markdownToXhtml("| | Affix |\n|---|---|\n| 1sg | ـم |"),
+            "<table class=\"table table-sm table-bordered\"><thead><tr>"
+            "<th></th><th>Affix</th></tr></thead><tbody><tr>"
+            "<td dir=\"auto\">1sg</td><td dir=\"auto\">ـم</td></tr>"
+            "</tbody></table>");
+}
+
+TEST_F(PagesTest, ExplanationSourcesOpenTheirGrammarSections) {
+  addText(kBookText, 1, L"src", ckb, L"کتێبەکەم");
+  addWord(L"کتێبەکەم", ckb);
+  auto client = useFakeClaude({});
+  client->mCanExplain = true;
+  client->mExplanation = bookExplanation();
+  client->mGrammar = claude::grammarReferenceFrom(
+      "<section id=\"clitics.agent\" title=\"Agent clitics\">\n"
+      "The **agent** affix (see clitics.sets).\n</section>\n"
+      "<section id=\"clitics.sets\" title=\"The clitic sets\">\n"
+      "Set I and $et II.\n</section>");
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  selectLanguage(app, "Kurdish");
+  auto *page = openWord(app, "کتێبەکەم");
+  findButton(page, "Explain")->clicked().emit(Wt::WMouseEvent());
+  auto *explanation = shownExplanation(page);
+  ASSERT_NE(explanation, nullptr);
+  EXPECT_TRUE(containsText(explanation, "Sources"));
+  auto *source = findButton(explanation, "Agent clitics");
+  ASSERT_NE(source, nullptr);
+  // Only the cited section is listed.
+  EXPECT_EQ(findButton(explanation, "The clitic sets"), nullptr);
+
+  source->clicked().emit(Wt::WMouseEvent());
+  auto *dialog = findOne<Wt::WDialog>(app.domRoot());
+  ASSERT_NE(dialog, nullptr);
+  EXPECT_EQ(dialog->windowTitle(), "Agent clitics");
+  auto *body = findOne<Wt::WTemplate>(dialog->contents());
+  ASSERT_NE(body, nullptr);
+  EXPECT_EQ(body->templateText(),
+            "<p>The <strong>agent</strong> affix (see ${ref0}).</p>");
+  auto *back = findButton(dialog, "Back");
+  ASSERT_NE(back, nullptr);
+  EXPECT_TRUE(back->isHidden());
+
+  // A section it mentions opens in the same dialog, and Back returns.
+  findButton(dialog->contents(), "clitics.sets")
+      ->clicked()
+      .emit(Wt::WMouseEvent());
+  EXPECT_EQ(dialog->windowTitle(), "The clitic sets");
+  body = findOne<Wt::WTemplate>(dialog->contents());
+  EXPECT_EQ(body->templateText(), "<p>Set I and $$et II.</p>");
+  EXPECT_FALSE(back->isHidden());
+  back->clicked().emit(Wt::WMouseEvent());
+  EXPECT_EQ(dialog->windowTitle(), "Agent clitics");
+  EXPECT_TRUE(back->isHidden());
+
+  findButton(dialog, "Close")->clicked().emit(Wt::WMouseEvent());
+  EXPECT_EQ(findOne<Wt::WDialog>(app.domRoot()), nullptr);
 }

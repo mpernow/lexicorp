@@ -29,7 +29,10 @@ void saveExplanation(AppContext &appContext, std::int64_t hash,
 // The explanation as shown under its sentence: the translation, the words
 // interlinear (word, Leipzig gloss, base form and gloss), the parts of each
 // word that has several, the constructions and the notes, with the grammar
-// sections they cite. `model` is the one that answered.
+// sections they cite. `model` is the one that answered. With `grammar`
+// (which must outlive the widget), a "Sources" list ends it: each cited
+// section, opening its text in a dialog.
 std::unique_ptr<Wt::WContainerWidget>
 explanationWidget(const claude::SentenceExplanation &explanation,
-                  const std::string &model);
+                  const std::string &model,
+                  const claude::GrammarReference *grammar = nullptr);

@@ -121,6 +121,8 @@ public:
 
   // Whether explainSentence() is available: it needs the grammar reference.
   virtual bool canExplain() const = 0;
+  // The grammar reference explanations cite; null without one.
+  virtual const GrammarReference *grammar() const = 0;
 };
 
 class ClaudeClient : public IClaudeClient {
@@ -140,6 +142,7 @@ public:
   WordLookup defineWord(const WordQuery &query) override;
   SentenceExplanation explainSentence(const SentenceQuery &query) override;
   bool canExplain() const override;
+  const GrammarReference *grammar() const override;
 
 private:
   HttpResponse post(const std::string &body);
