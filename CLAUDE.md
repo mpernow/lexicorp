@@ -140,17 +140,21 @@ headers in `src/<lib>/include/<lib>/`.
   read from `LEXICORP_GRAMMAR_FILE` at startup, not compiled in; without it
   `canExplain()` is false. The schema restricts cited sections to the
   reference's ids. `SentenceExplanation::answerJson` is what gets cached;
-  `explanationFromJson` reads it back. Model: `SentenceQuery::model`, chosen
+  `explanationFromJson` reads it back; an answer without words or a
+  translation (which both models return now and then) is an error, so it
+  is never stored, and a stored one counts as not explained. Model: `SentenceQuery::model`, chosen
   in the sidebar (`kExplainModels`: Sonnet or Haiku, an `explain_model`
   cookie, `AppContext::explainModel`), else `LEXICORP_CLAUDE_EXPLAIN_MODEL`
   (default: the lookup model). Haiku 5.5 costs 5x for prompts over 100k
-  tokens, which the grammar reference is, so `pricingFor` takes the
-  request's prompt size and the Home page prices requests one by one.
+  tokens, which the full grammar reference is, so `pricingFor` takes the
+  request's prompt size and the Home page prices requests one by one
+  (`ClaudeUsageRepository::requestsSince`).
 
 - **pages** — one `Wt::WContainerWidget` subclass per screen.
   `LexiCorpMain` (`Wt::WApplication`) builds the shell: a sidebar with a
-  language `WComboBox` and a `WMenu` bound to a `WStackedWidget`, using
-  internal-path routing. The shell is plain flexbox, not a Wt layout
+  language `WComboBox`, a `WMenu` bound to a `WStackedWidget` (using
+  internal-path routing), and at the bottom the "Explain with" Sonnet /
+  Haiku buttons (only while `canExplain()`) and the dark mode switch. The shell is plain flexbox, not a Wt layout
   manager, so `style.css` can turn the sidebar into a top bar on portrait
   screens (and landscape ones narrower than 576px).
   Routes: `""` → `HomePage` (stats overview),
@@ -196,8 +200,9 @@ headers in `src/<lib>/include/<lib>/`.
 - **AppContext** (`pages/include/pages/AppContext.h`) is a single
   `shared_ptr` constructed by `LexiCorpMain` and handed to every page. It holds
   the `DatabaseHandler` and all repositories, the current `selectedLanguage` /
-  `selectedWord`, and `Wt::Signal`s (`languageChanged`, `wordSelected`) that
-  pages connect to in order to react to state changed elsewhere. Navigation
+  `selectedWord` / `explainModel`, and `Wt::Signal`s (`languageChanged`,
+  `wordSelected`, `explainModelChanged`) that pages connect to in order to
+  react to state changed elsewhere. Navigation
   between pages is done with `WApplication::instance()->setInternalPath(...)`.
 
 - **Pages are built once, at startup.** Every page is constructed when the
@@ -209,8 +214,9 @@ headers in `src/<lib>/include/<lib>/`.
 
 - **Per-browser preferences** live in one-year cookies read when the session
   starts: `language`, `explain_model` and `theme` (`dark` / `light`; without
-  it the browser's `prefers-color-scheme` is used). Dark mode is Bootstrap's `data-bs-theme`
-  on `<html>`, so CSS should use `--bs-*` variables, not fixed colours.
+  it the browser's `prefers-color-scheme` is used). Dark mode is Bootstrap's
+  `data-bs-theme` on `<html>`, so CSS should use `--bs-*` variables, not
+  fixed colours.
 
 - **Slow actions** (anything that writes many rows or processes a long
   text): connect the button's `clicked()` to `&WWidget::disable` *before* the
@@ -280,7 +286,8 @@ headers in `src/<lib>/include/<lib>/`.
   `created_at`. Saving again replaces it.
 - `claude_usage` — one row per Claude API request: `created_at`, `model`,
   `purpose`, input / output / cache-read / cache-creation tokens. The Home
-  page shows this month's total (UTC) and an estimated cost.
+  page shows this month's total (UTC) and an estimated cost, priced per
+  request.
 
 `tools/import_wiktionary.py` fills `dictionary` (source `wiktionary`) and
 `word_form` from the kaikki.org Central Kurdish extract, replacing its
@@ -296,18 +303,23 @@ of PDF page ranges) into faithful notes, reading the Kurdish from page
 images since the PDFs' text layers garble it; `tools/grammar_merge.py`
 writes one section per entry of `prompts/grammar_outline.md` from all the
 notes and assembles `grammar/reference.md`, the file `LEXICORP_GRAMMAR_FILE`
-names. The outline's ids are what explanations cite, so keep them stable. `grammar_merge.py --condense` rewrites each
-section to about 40% into `grammar/condensed/` and
-`grammar/reference-condensed.md`: with `LEXICORP_GRAMMAR_PROMPT_FILE` set,
-that is what explanations send, while `grammar()` (the Sources dialog)
-stays the full reference. The client ignores a condensed reference whose
-section ids differ from the full one's.
+names. The outline's ids are what explanations cite, so keep them stable.
+`grammar_merge.py --condense` rewrites each section shorter (asked for 40%,
+it came out at about two thirds: 78k tokens against 117k) into
+`grammar/condensed/` and `grammar/reference-condensed.md`: with
+`LEXICORP_GRAMMAR_PROMPT_FILE` set, that is what explanations send, while
+`grammar()` (the Sources dialog) stays the full reference. The client
+ignores a condensed reference whose section ids differ from the full one's.
+Both files are copied to the Pi by hand (`/var/lib/lexicorp/grammar.md`
+and `grammar-condensed.md`, mode 640, `root:lexicorp`).
 
 `tools/explain_eval.py` compares explanations of the sentences in
 `tools/explain_fixtures.json`, to try other models, prompts or references:
 `ask` explains them all through `explain_sentence`
-(`src/claude/ExplainCli.cpp`, the app's own request; paid) and saves a run
-in the ignored `explain-runs/`; `compare` puts runs, or a database's stored
+(`src/claude/ExplainCli.cpp`, the app's own request, one JSON line per
+sentence on stdin and stdout; paid) and saves a run in the ignored
+`explain-runs/` (give each run its own `--label`, or it overwrites the
+last run of that model); `compare` puts runs, or a database's stored
 explanations, side by side in `explain-runs/compare.html`.
 
 The typical flow: `InsertTextPage` runs `TextProcessor::extractSentences`,
@@ -379,5 +391,11 @@ unless noted.
   ("Add to Home Screen"). The icons (an open book with "a" and "ک" on
   Bootstrap blue `#0d6efd`) are generated by `tools/make_icons.py` (Pillow);
   that colour is also the `theme-color` in `addHeadTags()`.
+- Write Unicode bidi controls (isolates U+2066–2069, marks U+200E/200F) as
+  `\u` escapes, as `isolate()` in `pages/Bidi.h` does: raw ones are
+  invisible in an editor, and GCC's `-Wbidi-chars` warns about a literal
+  that opens one without closing it.
+- `Wt::Json::serialize` breaks lines even at indent 0; strip the newlines
+  where one line per object is needed (`ExplainCli.cpp`).
 - No committed `.clang-format`; existing code follows LLVM style (2-space
   indent, 80 columns).

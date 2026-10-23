@@ -83,7 +83,7 @@ Run `sudo systemctl daemon-reload`, then `./deploy.sh` to build and install, the
 
 With an API key, a Kurdish word without a gloss gets an "Ask Claude" button on its sources page. The answer (glosses, plus any idioms the word is part of in its sentences) is stored as AI-generated dictionary entries, and the Home page shows this month's requests and their estimated cost. Without a key the button doesn't appear.
 
-With the grammar reference too (`LEXICORP_GRAMMAR_FILE`), each Kurdish sentence on that page gets an "Explain" button: a translation, every word glossed interlinear and split into its parts, and notes on the grammar, citing the reference's sections. Explanations are stored, so a sentence is paid for once.
+With the grammar reference too (`LEXICORP_GRAMMAR_FILE`), each Kurdish sentence on that page gets an "Explain" button: a translation, every word glossed interlinear and split into its parts, and notes on the grammar, citing the reference's sections; the "Sources" under an explanation open those sections. Explanations are stored, so a sentence is paid for once. The sidebar's "Explain with" buttons choose Sonnet or Haiku (per browser); Haiku is several times cheaper but less accurate on clitics. An explanation from the other model gets an "Explain again with …" link that replaces it.
 
 Create a key in the Claude Console (set a monthly spend limit there), then on the server:
 
@@ -101,19 +101,20 @@ ANTHROPIC_API_KEY=sk-ant-...
 LEXICORP_CLAUDE_MODEL=claude-sonnet-5-5
 # Optional: the "Explain" button on Kurdish sentences needs the grammar
 # reference built from the grammar books (see TODO.md), readable by the
-# lexicorp user.
+# lexicorp user: copy it with `sudo install -m 640 -o root -g lexicorp`.
 LEXICORP_GRAMMAR_FILE=/var/lib/lexicorp/grammar.md
 # Optional: a condensed version of it with the same sections
 # (tools/grammar_merge.py --condense), sent to Claude instead to make
 # explanations cheaper; the full one is still what the app shows.
 LEXICORP_GRAMMAR_PROMPT_FILE=/var/lib/lexicorp/grammar-condensed.md
-# Optional; the default is LEXICORP_CLAUDE_MODEL.
+# Optional: the explanation model for browsers that haven't chosen one in
+# the sidebar; the default is LEXICORP_CLAUDE_MODEL.
 LEXICORP_CLAUDE_EXPLAIN_MODEL=claude-sonnet-5-5
 ```
 
 and restart the service. systemd reads the file as root, so the `lexicorp` user can't. Locally, export the same variables before `cmake --build build/debug --target run`.
 
-The prompts are `prompts/define_word.md` and `prompts/explain_sentence.md`; they are compiled into the binary, so rebuild after editing them. The grammar reference isn't (it is derived from copyrighted books), so it stays out of git and is read at startup.
+The prompts are `prompts/define_word.md` and `prompts/explain_sentence.md`; they are compiled into the binary, so rebuild after editing them. The grammar reference isn't (it is derived from copyrighted books), so it stays out of git and is read at startup: after regenerating it (or the condensed version), copy it to the server again and restart. To compare models, prompts or references on a fixed set of sentences before changing them, see `tools/explain_eval.py`.
 
 To deploy updates, run `./deploy.sh` from the repo on the server. It pulls, builds, runs the tests, backs up the database, installs to `/opt/lexicorp` and restarts the service.
 
