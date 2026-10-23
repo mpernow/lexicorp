@@ -529,7 +529,12 @@ void ViewSourcePage::addSentencesBlock(
 void ViewSourcePage::addExplanation(Wt::WContainerWidget *row,
                                     const db::models::Sentence &sentence) {
   auto hash = sentenceHash(mTextProcessor, sentence.sentence);
-  bool stored = mAppContext->explanationRepository->get(hash).has_value();
+  // An unreadable or empty stored answer counts as none: explaining again
+  // replaces it.
+  auto storedAnswer = mAppContext->explanationRepository->get(hash);
+  bool stored = storedAnswer &&
+                claude::explanationFromJson(storedAnswer->answerJson)
+                    .error.empty();
   auto current = mAppContext->currentExplainModel();
 
   auto button =

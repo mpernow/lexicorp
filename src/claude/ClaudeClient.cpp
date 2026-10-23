@@ -363,6 +363,12 @@ void readExplanation(const std::string &text,
     if (!text.empty())
       explanation.notes.push_back(ExplanationNote{text, sectionsOf(*item)});
   }
+  // Valid JSON with nothing in it happens now and then (with either model);
+  // an error keeps it from being stored as the sentence's explanation.
+  if (explanation.words.empty() || explanation.translation.empty()) {
+    explanation = SentenceExplanation{.usage = std::move(explanation.usage),
+                                      .error = "Claude's answer was empty"};
+  }
 }
 
 void readAnswer(const std::string &text, WordLookup &lookup) {
@@ -403,10 +409,25 @@ void readAnswer(const std::string &text, WordLookup &lookup) {
 ClaudeClient::ClaudeClient(std::string apiKey, std::string model,
                            std::unique_ptr<IHttpTransport> transport,
                            std::optional<GrammarReference> grammar,
-                           std::string explainModel)
+                           std::string explainModel,
+                           std::optional<GrammarReference> promptGrammar)
     : mApiKey(std::move(apiKey)), mModel(std::move(model)),
       mTransport(std::move(transport)), mGrammar(std::move(grammar)),
-      mExplainModel(explainModel.empty() ? mModel : std::move(explainModel)) {
+      mExplainModel(explainModel.empty() ? mModel : std::move(explainModel)),
+      mPromptGrammar(std::move(promptGrammar)) {
+  if (!mPromptGrammar)
+    return;
+  // Answers cite the ids sent, and the app looks them up in mGrammar.
+  auto ids = [](const GrammarReference &reference) {
+    auto sorted = reference.sectionIds;
+    std::ranges::sort(sorted);
+    return sorted;
+  };
+  if (!mGrammar || ids(*mPromptGrammar) != ids(*mGrammar)) {
+    std::cerr << "The condensed grammar reference doesn't have the same "
+                 "sections as the full one; sending the full one\n";
+    mPromptGrammar.reset();
+  }
 }
 
 std::shared_ptr<ClaudeClient> ClaudeClient::fromEnvironment() {
@@ -426,11 +447,19 @@ std::shared_ptr<ClaudeClient> ClaudeClient::fromEnvironment() {
       std::cerr << "LEXICORP_GRAMMAR_FILE: can't read " << path
                 << "; sentence explanations are off\n";
   }
+  std::optional<GrammarReference> promptGrammar;
+  if (auto path = env("LEXICORP_GRAMMAR_PROMPT_FILE"); !path.empty()) {
+    promptGrammar = loadGrammarReference(path);
+    if (!promptGrammar)
+      std::cerr << "LEXICORP_GRAMMAR_PROMPT_FILE: can't read " << path
+                << "; sending the full grammar reference\n";
+  }
   // An explanation at medium effort can take a few minutes.
   return std::make_shared<ClaudeClient>(
       apiKey, model.empty() ? kDefaultModel : model,
       std::make_unique<CurlTransport>(std::chrono::seconds{300}),
-      std::move(grammar), env("LEXICORP_CLAUDE_EXPLAIN_MODEL"));
+      std::move(grammar), env("LEXICORP_CLAUDE_EXPLAIN_MODEL"),
+      std::move(promptGrammar));
 }
 
 HttpResponse ClaudeClient::post(const std::string &body) {
@@ -451,8 +480,8 @@ SentenceExplanation ClaudeClient::explainSentence(const SentenceQuery &query) {
     return {.error = "Sentence explanations need the grammar reference"};
   return parseExplainSentenceResponse(
       post(explainSentenceRequest(
-          query.model.empty() ? mExplainModel : query.model, *mGrammar,
-          query)));
+          query.model.empty() ? mExplainModel : query.model,
+          mPromptGrammar ? *mPromptGrammar : *mGrammar, query)));
 }
 
 bool ClaudeClient::canExplain() const { return mGrammar.has_value(); }

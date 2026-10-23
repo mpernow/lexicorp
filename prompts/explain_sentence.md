@@ -32,6 +32,17 @@ Rules:
 - Pronominal clitics (-م, -ت, -ی, -مان, -تان, -یان) are easy to misread: for
   each one, say whether it marks a possessor, an object, or the agent of a
   past transitive verb, and which word it attaches to.
+- A transitive verb in a past-stem tense (simple past, past habitual,
+  perfect, past perfect) always has an agent clitic, even when the subject
+  is a noun or pronoun; a 3rd-person agent is never zero (clitics.agent).
+  Look for it on the first element before the verb: the negative prefix,
+  دە-, a preverb, or the end of the object phrase. So an -ی, -م or -ت on the
+  word just before such a verb is normally its agent, not an ezafe or a
+  possessor: نانم خواردووە "I have eaten food", and with an -ەوە verb
+  -ی دۆزیوەتەوە "he has found" (tense.perfect). Only when nothing precedes
+  the verb does the agent go on the verb itself.
+- In the present tense the same position means the object: a clitic on a
+  preverb or on دە- / بـ is the object of the verb (clitics.object).
 - Use plain English grammatical terms, with the Kurdish term in parentheses
   where the reference uses one.
 - Be brief: the learner reads this next to the sentence, on a phone.

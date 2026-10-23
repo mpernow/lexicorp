@@ -438,6 +438,20 @@ TEST(ClaudeClientTests, ExplanationErrors) {
 
   EXPECT_EQ(claude::explanationFromJson("not json").error,
             "Claude's answer could not be read");
+
+  // Valid, but empty: an error, with the usage kept (it was billed).
+  const std::string empty =
+      R"({"constructions":[],"notes":[],"translation":"","words":[]})";
+  auto blank = claude::parseExplainSentenceResponse(ok(messageWith(empty)));
+  EXPECT_EQ(blank.error, "Claude's answer was empty");
+  EXPECT_TRUE(blank.usage);
+  EXPECT_TRUE(blank.answerJson.empty());
+  // A translation alone is not an explanation either.
+  EXPECT_EQ(claude::explanationFromJson(
+                R"({"constructions":[],"notes":[],"translation":"Hi.",)"
+                R"("words":[]})")
+                .error,
+            "Claude's answer was empty");
 }
 
 TEST(ClaudeClientTests, ExplainingNeedsTheGrammarReference) {
@@ -492,4 +506,44 @@ TEST(ClaudeClientTests, AQueryCanNameItsModel) {
 
   EXPECT_EQ(claude::modelLabel("claude-haiku-5-5"), "Haiku");
   EXPECT_EQ(claude::modelLabel("claude-opus-5-5"), "claude-opus-5-5");
+}
+
+TEST(ClaudeClientTests, ExplainsWithTheCondensedReference) {
+  auto condensed = claude::grammarReferenceFrom(
+      "<section id=\"clitics.agent\" title=\"Agent clitics\">short</section>\n"
+      "<section id=\"noun.definite\" title=\"The definite state\">-aka"
+      "</section>");
+  auto transport =
+      std::make_unique<FakeTransport>(ok(messageWith(kExplanation)));
+  auto *fake = transport.get();
+  claude::ClaudeClient client{"secret", "claude-sonnet-5-5",
+                              std::move(transport), kGrammar, "", condensed};
+  client.explainSentence({L"کتێبەکەم خوێندەوە", L"", L""});
+
+  Json::Object request;
+  Json::parse(fake->mBody, request);
+  const Json::Array &system = request.get("system");
+  EXPECT_EQ(utf8(static_cast<const Json::Object &>(system[0]).get("text")),
+            "<grammar_reference>\n" + condensed.text +
+                "\n</grammar_reference>");
+  // The full one is still the one to read.
+  ASSERT_NE(client.grammar(), nullptr);
+  EXPECT_EQ(client.grammar()->text, kGrammar.text);
+}
+
+TEST(ClaudeClientTests, ACondensedReferenceWithOtherIdsIsIgnored) {
+  auto transport =
+      std::make_unique<FakeTransport>(ok(messageWith(kExplanation)));
+  auto *fake = transport.get();
+  claude::ClaudeClient client{
+      "secret", "claude-sonnet-5-5", std::move(transport), kGrammar, "",
+      claude::grammarReferenceFrom(
+          "<section id=\"clitics.agent\" title=\"A\">short</section>")};
+  client.explainSentence({L"کتێبەکەم خوێندەوە", L"", L""});
+
+  Json::Object request;
+  Json::parse(fake->mBody, request);
+  const Json::Array &system = request.get("system");
+  EXPECT_EQ(utf8(static_cast<const Json::Object &>(system[0]).get("text")),
+            "<grammar_reference>\n" + kGrammar.text + "\n</grammar_reference>");
 }

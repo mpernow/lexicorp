@@ -20,6 +20,14 @@ ANTHROPIC_API_KEY.
     pipenv run python tools/grammar_merge.py clitics.agent
     pipenv run python tools/grammar_merge.py             # every missing one
     pipenv run python tools/grammar_merge.py --assemble  # reference only
+
+--condense rewrites each finished section shorter, into grammar/condensed/,
+and assembles grammar/reference-condensed.md: the version sent to Claude
+with every explanation (LEXICORP_GRAMMAR_PROMPT_FILE), while the app shows
+the full one. Only the sections are sent, not the notes.
+
+    pipenv run python tools/grammar_merge.py --condense            # all
+    pipenv run python tools/grammar_merge.py --condense clitics.agent
 """
 
 import argparse
@@ -37,6 +45,8 @@ EXPLAIN_PROMPT = ROOT / "prompts" / "explain_sentence.md"
 NOTES_DIR = ROOT / "grammar" / "notes"
 SECTIONS_DIR = ROOT / "grammar" / "sections"
 REFERENCE = ROOT / "grammar" / "reference.md"
+CONDENSED_DIR = ROOT / "grammar" / "condensed"
+CONDENSED_REFERENCE = ROOT / "grammar" / "reference-condensed.md"
 
 DEFAULT_MODEL = "claude-opus-5-5"
 
@@ -176,6 +186,54 @@ def user_message(section):
             f"Main sources: {section.sources}")
 
 
+CONDENSE_INSTRUCTIONS = """\
+You are condensing one section of a reference grammar of Sorani (Central) \
+Kurdish.
+
+How it will be used: the reference is given, as context, to a model that \
+explains authentic Sorani sentences to an English-speaking learner: base \
+forms, stems, affixes and clitics with their functions, Leipzig glosses, \
+constructions, citing the reference's section ids. It is sent with every \
+request, so every token counts. What matters is how to recognise a form in \
+running text, what it can mean, and how to tell it apart from forms that \
+look the same.
+
+The outline of the whole reference, one section per line (id — title. \
+scope):
+<outline>
+{outline}
+</outline>
+
+Rewrite the section in the user message to about 40% of its length:
+- Keep every rule and every distinction, above all the recognition points \
+(which -ی, which -ە, ...). Keep the paradigm tables, made compact: merge \
+columns, drop rows that only repeat a pattern already shown.
+- Keep the cross-references "(see id)". Only use ids from the outline.
+- Keep one short example per rule where the rule is unclear without it, \
+as `- Kurdish — translation`. Copy the Kurdish exactly as written.
+- Drop the Sources line, which book says what, repeated explanations, \
+further examples, romanization except where pronunciation matters, and \
+dialect notes a reader of standard written Sorani won't need. Keep a \
+disagreement between the books only where it changes how a form is read.
+- Add nothing that isn't in the section.
+- No heading for the section itself; bold labels or `####` subheadings \
+inside it if needed.
+
+Reply with the condensed Markdown only."""
+
+
+def condense_system_prompt(sections):
+    outline = "\n".join(f"{s.id} — {s.title}. {s.scope}" for s in sections)
+    return [{"type": "text",
+             "text": CONDENSE_INSTRUCTIONS.format(outline=outline),
+             "cache_control": {"type": "ephemeral"}}]
+
+
+def condense_message(section):
+    return (f"Section: {section.id} — {section.title}\n\n"
+            f"{section_path(section).read_text().strip()}")
+
+
 def clean(text, section):
     """The section body as the model wrote it, minus a repeated title."""
     text = text.strip()
@@ -187,7 +245,7 @@ def clean(text, section):
     return text
 
 
-def write_section(client, model, effort, system, section):
+def write_section(client, model, effort, system, section, message):
     with client.beta.messages.stream(
         model=model,
         max_tokens=32000,
@@ -196,7 +254,7 @@ def write_section(client, model, effort, system, section):
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",
         system=system,
-        messages=[{"role": "user", "content": user_message(section)}],
+        messages=[{"role": "user", "content": message}],
     ) as stream:
         response = stream.get_final_message()
     if response.stop_reason == "refusal":
@@ -220,13 +278,23 @@ def section_path(section):
     return SECTIONS_DIR / f"{section.id}.md"
 
 
-def assemble(sections):
+def condensed_path(section):
+    return CONDENSED_DIR / f"{section.id}.md"
+
+
+def unknown_ids(text, sections):
+    """The ids `text` cites as "(see …)" that the outline doesn't have."""
+    cited = set(re.findall(r"\bsee ([a-z]+\.[a-z0-9.-]*[a-z0-9])", text))
+    return cited - {s.id for s in sections}
+
+
+def assemble(sections, path_of=section_path, reference=REFERENCE):
     """Writes the reference from the sections written so far."""
     parts = ["# Sorani Kurdish grammar reference\n"]
     group = None
     missing = []
     for section in sections:
-        path = section_path(section)
+        path = path_of(section)
         if not path.exists():
             missing.append(section.id)
             continue
@@ -236,9 +304,9 @@ def assemble(sections):
         title = section.title.replace('"', "'")
         parts.append(f'<section id="{section.id}" title="{title}">\n'
                      f"{path.read_text().strip()}\n</section>\n")
-    REFERENCE.write_text("\n".join(parts))
-    print(f"wrote {REFERENCE.relative_to(ROOT)}: {len(sections) - len(missing)}"
-          f" of {len(sections)} sections, {len(REFERENCE.read_text())} chars")
+    reference.write_text("\n".join(parts))
+    print(f"wrote {reference.relative_to(ROOT)}: {len(sections) - len(missing)}"
+          f" of {len(sections)} sections, {len(reference.read_text())} chars")
     if missing:
         print(f"  missing: {', '.join(missing)}")
     # The schema only lets answers cite the reference's ids, so the
@@ -269,6 +337,13 @@ def count(client, model, sections):
             messages=[{"role": "user", "content": REFERENCE.read_text()}],
         ).input_tokens
         print(f"reference: {reference} tokens")
+    if CONDENSED_REFERENCE.exists():
+        condensed = client.messages.count_tokens(
+            model=model,
+            messages=[{"role": "user",
+                       "content": CONDENSED_REFERENCE.read_text()}],
+        ).input_tokens
+        print(f"condensed reference: {condensed} tokens")
 
 
 def main():
@@ -284,35 +359,57 @@ def main():
                         help="only assemble the reference")
     parser.add_argument("--force", action="store_true",
                         help="redo sections that already have a file")
+    parser.add_argument("--condense", action="store_true",
+                        help="write condensed sections and their reference")
     parser.add_argument("--model", default=DEFAULT_MODEL)
-    parser.add_argument("--effort", default="high",
-                        choices=["low", "medium", "high", "xhigh", "max"])
+    parser.add_argument("--effort",
+                        choices=["low", "medium", "high", "xhigh", "max"],
+                        help="default: high, medium with --condense")
     parser.add_argument("--workers", type=int, default=4)
     args = parser.parse_args()
 
     sections = read_outline()
     by_id = {s.id: s for s in sections}
+    effort = args.effort or ("medium" if args.condense else "high")
+    # What this run writes: the sections, or their condensed versions.
+    if args.condense:
+        path_of, reference = condensed_path, CONDENSED_REFERENCE
+        out_dir = CONDENSED_DIR
+    else:
+        path_of, reference = section_path, REFERENCE
+        out_dir = SECTIONS_DIR
 
     if args.list:
         for s in sections:
-            status = "done" if section_path(s).exists() else "-"
+            status = "done" if path_of(s).exists() else "-"
             print(f"{status:4} {s.id:24} {s.title}")
         return
     if args.assemble:
-        assemble(sections)
+        assemble(sections, path_of, reference)
         return
 
     unknown = [i for i in args.sections if i not in by_id]
     if unknown:
         sys.exit(f"unknown sections: {', '.join(unknown)}")
     todo = [by_id[i] for i in args.sections] or sections
+    if args.condense:
+        unwritten = [s.id for s in todo if not section_path(s).exists()]
+        if unwritten:
+            sys.exit(f"write these sections first: {', '.join(unwritten)}")
     if not args.force:
-        skipped = [s for s in todo if section_path(s).exists()]
+        skipped = [s for s in todo if path_of(s).exists()]
         if args.sections:
             for s in skipped:
                 print(f"{s.id}: exists, skipping (--force to redo)")
         todo = [s for s in todo if s not in skipped]
 
+    if args.dry_run and args.condense:
+        system = condense_system_prompt(sections)
+        print(system[0]["text"])
+        for s in todo[:1]:
+            print(f"--- user\n{condense_message(s)}")
+        print(f"--- {len(todo)} sections to condense")
+        return
     if args.dry_run:
         system = system_prompt(sections)
         print(f"--- system: notes {len(system[0]['text'])} chars, "
@@ -331,22 +428,27 @@ def main():
         return
     if not todo:
         print("nothing to do")
-        assemble(sections)
+        assemble(sections, path_of, reference)
         return
 
-    system = system_prompt(sections)
-    SECTIONS_DIR.mkdir(parents=True, exist_ok=True)
+    if args.condense:
+        system = condense_system_prompt(sections)
+        message = condense_message
+    else:
+        system = system_prompt(sections)
+        message = user_message
+    out_dir.mkdir(parents=True, exist_ok=True)
     total = 0.0
     failed = []
 
     def run(section):
-        return section, write_section(client, args.model, args.effort,
-                                      system, section)
+        return section, write_section(client, args.model, effort, system,
+                                      section, message(section))
 
     def done(section, result):
         nonlocal total
         text, model, usage = result
-        section_path(section).write_text(text + "\n")
+        path_of(section).write_text(text + "\n")
         dollars = cost(model, usage)
         total += dollars or 0
         print(f"{section.id}: {len(text)} chars, {model}, "
@@ -357,6 +459,11 @@ def main():
               + (f", ${dollars:.2f}" if dollars is not None else ""))
         for problem in check_kurdish(text):
             print(f"  suspicious Kurdish, {problem}")
+        if args.condense:
+            full = len(section_path(section).read_text().strip())
+            print(f"  {100 * len(text) // full}% of the section")
+        if unknown := unknown_ids(text, sections):
+            print(f"  cites ids not in the outline: {', '.join(sorted(unknown))}")
 
     # The first request writes the cache; the others then read it.
     first, rest = todo[0], todo[1:]
@@ -372,7 +479,7 @@ def main():
                     print(f"{section.id}: FAILED: {error}")
 
     print(f"total ${total:.2f}")
-    assemble(sections)
+    assemble(sections, path_of, reference)
     if failed:
         sys.exit(f"failed: {' '.join(failed)} (run again to retry them)")
 

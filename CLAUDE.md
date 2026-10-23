@@ -296,7 +296,12 @@ of PDF page ranges) into faithful notes, reading the Kurdish from page
 images since the PDFs' text layers garble it; `tools/grammar_merge.py`
 writes one section per entry of `prompts/grammar_outline.md` from all the
 notes and assembles `grammar/reference.md`, the file `LEXICORP_GRAMMAR_FILE`
-names. The outline's ids are what explanations cite, so keep them stable.
+names. The outline's ids are what explanations cite, so keep them stable. `grammar_merge.py --condense` rewrites each
+section to about 40% into `grammar/condensed/` and
+`grammar/reference-condensed.md`: with `LEXICORP_GRAMMAR_PROMPT_FILE` set,
+that is what explanations send, while `grammar()` (the Sources dialog)
+stays the full reference. The client ignores a condensed reference whose
+section ids differ from the full one's.
 
 `tools/explain_eval.py` compares explanations of the sentences in
 `tools/explain_fixtures.json`, to try other models, prompts or references:

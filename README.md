@@ -103,6 +103,10 @@ LEXICORP_CLAUDE_MODEL=claude-sonnet-5-5
 # reference built from the grammar books (see TODO.md), readable by the
 # lexicorp user.
 LEXICORP_GRAMMAR_FILE=/var/lib/lexicorp/grammar.md
+# Optional: a condensed version of it with the same sections
+# (tools/grammar_merge.py --condense), sent to Claude instead to make
+# explanations cheaper; the full one is still what the app shows.
+LEXICORP_GRAMMAR_PROMPT_FILE=/var/lib/lexicorp/grammar-condensed.md
 # Optional; the default is LEXICORP_CLAUDE_MODEL.
 LEXICORP_CLAUDE_EXPLAIN_MODEL=claude-sonnet-5-5
 ```

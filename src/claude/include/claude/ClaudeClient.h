@@ -110,7 +110,8 @@ struct ExplanationNote {
   std::vector<std::string> sections;
 };
 
-// The answer to a SentenceQuery. `error` is empty on success. `answerJson`
+// The answer to a SentenceQuery. `error` is empty on success, and set for
+// an answer without a translation or words. `answerJson`
 // is Claude's answer as returned, to store and read back with
 // explanationFromJson() without asking again. `usage` is set whenever the
 // API answered, failed request or not.
@@ -144,14 +145,19 @@ public:
 class ClaudeClient : public IClaudeClient {
 public:
   // Without `grammar`, sentences can't be explained. An empty
-  // `explainModel` means `model`.
+  // `explainModel` means `model`. `promptGrammar`, a shorter version of
+  // `grammar` with the same section ids, is the one sent with explanations
+  // (grammar() is still `grammar`, for reading); it is ignored if its ids
+  // differ.
   ClaudeClient(std::string apiKey, std::string model,
                std::unique_ptr<IHttpTransport> transport,
                std::optional<GrammarReference> grammar = std::nullopt,
-               std::string explainModel = "");
+               std::string explainModel = "",
+               std::optional<GrammarReference> promptGrammar = std::nullopt);
 
   // From ANTHROPIC_API_KEY, LEXICORP_CLAUDE_MODEL,
-  // LEXICORP_CLAUDE_EXPLAIN_MODEL and LEXICORP_GRAMMAR_FILE; null without a
+  // LEXICORP_CLAUDE_EXPLAIN_MODEL, LEXICORP_GRAMMAR_FILE and
+  // LEXICORP_GRAMMAR_PROMPT_FILE (the condensed reference); null without a
   // key.
   static std::shared_ptr<ClaudeClient> fromEnvironment();
 
@@ -169,6 +175,7 @@ private:
   std::unique_ptr<IHttpTransport> mTransport;
   std::optional<GrammarReference> mGrammar;
   std::string mExplainModel;
+  std::optional<GrammarReference> mPromptGrammar;
 };
 
 // The Messages API request body for `query` (UTF-8 JSON).

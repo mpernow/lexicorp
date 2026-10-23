@@ -7,6 +7,12 @@ by side, to compare models, prompts or grammar references.
   ANTHROPIC_API_KEY=... python3 tools/explain_eval.py ask \\
       --grammar grammar/reference.md --model claude-haiku-5-5
 
+  # The same with the condensed reference (grammar_merge.py --condense).
+  ANTHROPIC_API_KEY=... python3 tools/explain_eval.py ask \\
+      --grammar grammar/reference.md \\
+      --prompt-grammar grammar/reference-condensed.md \\
+      --model claude-haiku-5-5 --label haiku-condensed
+
   # One column per run (a saved run, or a database's stored explanations).
   python3 tools/explain_eval.py compare lexiCorp-pi.db \\
       explain-runs/claude-haiku-5-5.json
@@ -48,6 +54,9 @@ def ask(args):
     env = dict(os.environ, LEXICORP_CLAUDE_EXPLAIN_MODEL=args.model)
     if args.grammar:
         env["LEXICORP_GRAMMAR_FILE"] = str(Path(args.grammar).resolve())
+    if args.prompt_grammar:
+        env["LEXICORP_GRAMMAR_PROMPT_FILE"] = str(
+            Path(args.prompt_grammar).resolve())
 
     process = subprocess.Popen([str(binary)], stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE, text=True, env=env)
@@ -194,6 +203,9 @@ def main():
     a = commands.add_parser("ask", help="explain every sentence with Claude")
     a.add_argument("--model", required=True)
     a.add_argument("--grammar", help="the reference (LEXICORP_GRAMMAR_FILE)")
+    a.add_argument("--prompt-grammar",
+                   help="the condensed one to send instead "
+                        "(LEXICORP_GRAMMAR_PROMPT_FILE)")
     a.add_argument("--label", help="column title and file name (default: model)")
     a.add_argument("--out", type=Path)
     a.add_argument("--binary", type=Path)

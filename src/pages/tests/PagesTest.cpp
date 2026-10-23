@@ -1715,3 +1715,57 @@ TEST_F(PagesTest, ExplainModelIsChosenInTheSidebar) {
     EXPECT_EQ(stored->model, "claude-haiku-5-5");
   }
 }
+
+TEST_F(PagesTest, EmptyExplanationsAreNotKept) {
+  addText(kBookText, 1, L"src", ckb, L"کتێبەکەم");
+  addWord(L"کتێبەکەم", ckb);
+  const std::string empty =
+      R"({"constructions":[],"notes":[],"translation":"","words":[]})";
+  processor::TextProcessor processor;
+  auto hash = sentenceHash(processor, L"کتێبەکەم خوێندەوە.");
+  {
+    // Stored before answers were checked.
+    AppContext appContext;
+    appContext.explanationRepository->save(db::models::Explanation{
+        .sentenceHash = hash,
+        .sentence = L"کتێبەکەم خوێندەوە.",
+        .answerJson = empty,
+        .model = "claude-sonnet-5-5",
+    });
+  }
+  auto client = useFakeClaude({});
+  client->mCanExplain = true;
+  client->mExplanation = claude::explanationFromJson(empty);
+  client->mExplanation.usage =
+      claude::Usage{.model = "claude-sonnet-5-5", .inputTokens = 100};
+
+  Wt::Test::WTestEnvironment env;
+  LexiCorpMain app{env};
+  selectLanguage(app, "Kurdish");
+  auto *page = openWord(app, "کتێبەکەم");
+  // The stored empty answer counts as none.
+  EXPECT_EQ(findButton(page, "Show explanation"), nullptr);
+  auto *button = findButton(page, "Explain");
+  ASSERT_NE(button, nullptr);
+
+  button->clicked().emit(Wt::WMouseEvent());
+  EXPECT_EQ(client->mSentenceQueries.size(), 1u);
+  EXPECT_TRUE(containsText(page, "Claude's answer was empty."));
+  EXPECT_EQ(shownExplanation(page), nullptr);
+  {
+    // Not stored over the old one, but its usage is logged.
+    AppContext appContext;
+    auto stored = appContext.explanationRepository->get(hash);
+    ASSERT_TRUE(stored);
+    EXPECT_EQ(stored->answerJson, empty);
+    EXPECT_EQ(appContext.claudeUsageRepository->totalsSince(0).size(), 1u);
+  }
+
+  // A good answer then replaces it.
+  client->mExplanation = bookExplanation();
+  button->clicked().emit(Wt::WMouseEvent());
+  ASSERT_NE(shownExplanation(page), nullptr);
+  AppContext appContext;
+  EXPECT_EQ(appContext.explanationRepository->get(hash)->answerJson,
+            client->mExplanation.answerJson);
+}
