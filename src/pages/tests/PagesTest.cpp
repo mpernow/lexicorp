@@ -1492,8 +1492,8 @@ TEST_F(PagesTest, ExplainShowsStoresAndReusesTheExplanation) {
   EXPECT_TRUE(containsText(explanation, "book-DEF=1SG"));
   EXPECT_TRUE(containsText(explanation, "Parts"));
   // Affixes shown with a tatweel on their joining side.
-  EXPECT_TRUE(anyTextContains(explanation, "ـەکە⁩ (definite)"));
-  EXPECT_TRUE(anyTextContains(explanation, "ـم⁩ (1sg agent)"));
+  EXPECT_TRUE(anyTextContains(explanation, "ـەکە\u2069 (definite)"));
+  EXPECT_TRUE(anyTextContains(explanation, "ـم\u2069 (1sg agent)"));
   EXPECT_TRUE(containsText(explanation, "The -م is the agent, not 'my'."));
   EXPECT_TRUE(containsText(explanation, " (clitics.agent)"));
   EXPECT_TRUE(
